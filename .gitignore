@@ -1,0 +1,13 @@
+# Scan results contain client infrastructure data - never commit them
+Output/
+*.log
+SQLMap*.json
+SQLMap*.csv
+SQLMap*.html
+!src/SQLMap/Templates/report.html
+
+# Editors / OS
+.vscode/
+*.swp
+Thumbs.db
+.DS_Store

@@ -1,0 +1,800 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SQLMap Report</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2Ij48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImciIHgxPSIwIiB5MT0iMCIgeDI9IjAiIHkyPSIxIj48c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiMyYTc4ZDYiLz48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMxYzVjYWIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48cmVjdCB4PSI4IiB5PSI4IiB3aWR0aD0iMjQwIiBoZWlnaHQ9IjI0MCIgcng9IjUyIiBmaWxsPSJ1cmwoI2cpIi8+PHJlY3QgeD0iNDYiIHk9IjY2IiB3aWR0aD0iMTI0IiBoZWlnaHQ9IjExMiIgZmlsbD0iI2ZmZiIvPjxlbGxpcHNlIGN4PSIxMDgiIGN5PSI2NiIgcng9IjYyIiByeT0iMjAiIGZpbGw9IiNmZmYiLz48ZWxsaXBzZSBjeD0iMTA4IiBjeT0iMTc4IiByeD0iNjIiIHJ5PSIyMCIgZmlsbD0iI2ZmZiIvPjxlbGxpcHNlIGN4PSIxMDgiIGN5PSI2NiIgcng9IjU3LjUiIHJ5PSIxNS41IiBmaWxsPSJub25lIiBzdHJva2U9IiMyYTc4ZDYiIHN0cm9rZS13aWR0aD0iOSIvPjxwYXRoIGQ9Ik00NiAxMTRhNjIgMjAgMCAwIDAgMTI0IDBNNDYgMTQ2YTYyIDIwIDAgMCAwIDEyNCAwIiBmaWxsPSJub25lIiBzdHJva2U9IiMyYTc4ZDYiIHN0cm9rZS13aWR0aD0iOSIvPjxjaXJjbGUgY3g9IjE3MiIgY3k9IjE3MiIgcj0iNDIiIGZpbGw9IiMxYzVjYWIiLz48Y2lyY2xlIGN4PSIxNzIiIGN5PSIxNzIiIHI9IjMzIiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMTgiLz48cGF0aCBkPSJNMjAwIDIwMGwyOCAyOCIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjI0IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4=">
+<style>
+:root {
+  color-scheme: light;
+  --surface-0: #f4f3f0;
+  --surface-1: #fcfcfb;
+  --surface-2: #f0efec;
+  --border: #e2e1dc;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #77766f;
+  --accent: #2a78d6;
+  --series-1: #2a78d6;
+  --neutral-bar: #b9b8b0;
+  --good: #0ca30c;
+  --warning: #fab219;
+  --serious: #ec835a;
+  --critical: #d03b3b;
+  --good-text: #006300;
+  --warning-text: #8a5a00;
+  --serious-text: #a2431c;
+  --critical-text: #b02727;
+  --row-hover: #f0efec;
+  --shadow: 0 1px 2px rgba(0,0,0,.06);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface-0: #121211;
+    --surface-1: #1a1a19;
+    --surface-2: #242422;
+    --border: #33332f;
+    --text-primary: #f0efec;
+    --text-secondary: #c3c2b7;
+    --text-muted: #9a998f;
+    --accent: #3987e5;
+    --series-1: #3987e5;
+    --neutral-bar: #5c5b55;
+    --good-text: #4cc44c;
+    --warning-text: #fab219;
+    --serious-text: #ec835a;
+    --critical-text: #f07a7a;
+    --row-hover: #242422;
+    --shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-0: #121211;
+  --surface-1: #1a1a19;
+  --surface-2: #242422;
+  --border: #33332f;
+  --text-primary: #f0efec;
+  --text-secondary: #c3c2b7;
+  --text-muted: #9a998f;
+  --accent: #3987e5;
+  --series-1: #3987e5;
+  --neutral-bar: #5c5b55;
+  --good-text: #4cc44c;
+  --warning-text: #fab219;
+  --serious-text: #ec835a;
+  --critical-text: #f07a7a;
+  --row-hover: #242422;
+  --shadow: none;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--surface-0);
+  color: var(--text-primary);
+  font: 14px/1.45 "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+}
+.wrap { max-width: 1440px; margin: 0 auto; padding: 24px 24px 64px; }
+header.top { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; }
+h1 { font-size: 24px; margin: 0 0 4px; font-weight: 650; letter-spacing: -.01em; }
+h1 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+h1 .logo { width: 32px; height: 32px; flex: none; }
+h1 .tag { font-size: 12px; font-weight: 500; color: var(--text-muted); margin-left: 8px; }
+h2 { font-size: 15px; margin: 0 0 12px; font-weight: 600; }
+.meta { color: var(--text-secondary); font-size: 13px; display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.meta b { color: var(--text-primary); font-weight: 600; }
+.confidential { margin-top: 8px; font-size: 12px; color: var(--text-muted); }
+.toolbar { display: flex; gap: 8px; align-items: center; }
+button, select, input[type="search"] {
+  font: inherit; color: var(--text-primary); background: var(--surface-1);
+  border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px;
+}
+button { cursor: pointer; }
+button:hover { background: var(--surface-2); }
+button:focus-visible, select:focus-visible, input:focus-visible, tr:focus-visible, .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 16px; box-shadow: var(--shadow); }
+
+/* KPI row */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.kpi .label { color: var(--text-secondary); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+.kpi .value { font-size: 32px; font-weight: 650; line-height: 1.15; margin: 4px 0 2px; font-variant-numeric: tabular-nums; }
+.kpi .sub { color: var(--text-muted); font-size: 12px; }
+.kpi .status { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; }
+
+/* Bar lists */
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.bars { display: grid; gap: 2px; }
+.bar-row { display: grid; grid-template-columns: minmax(120px, 50%) 1fr 64px; gap: 10px; align-items: center; padding: 4px 6px; border-radius: 6px; cursor: default; }
+.bar-row:hover { background: var(--row-hover); }
+.bar-row .name { color: var(--text-secondary); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 6px; }
+.bar-row .track { height: 12px; }
+.bar-row .fill { height: 12px; min-width: 2px; border-radius: 0 4px 4px 0; background: var(--series-1); }
+.bar-row .num { text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; color: var(--text-primary); }
+.bar-row .num small { color: var(--text-muted); margin-left: 4px; }
+.empty { color: var(--text-muted); font-size: 13px; padding: 8px 0; }
+
+/* Status chips (always icon + label) */
+.chip { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; font-size: 12px; font-weight: 600; }
+.dot { width: 9px; height: 9px; border-radius: 50%; flex: none; display: inline-block; }
+.st-good { color: var(--good-text); } .st-good .dot { background: var(--good); }
+.st-warning { color: var(--warning-text); } .st-warning .dot { background: var(--warning); }
+.st-serious { color: var(--serious-text); } .st-serious .dot { background: var(--serious); }
+.st-critical { color: var(--critical-text); } .st-critical .dot { background: var(--critical); }
+.st-neutral { color: var(--text-secondary); } .st-neutral .dot { background: var(--neutral-bar); }
+.st-info { color: var(--text-primary); } .st-info .dot { background: var(--series-1); }
+
+/* Tabs + tables */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 12px; flex-wrap: wrap; }
+.tab { border: 0; background: none; border-bottom: 2px solid transparent; border-radius: 0; padding: 8px 12px; color: var(--text-secondary); font-weight: 600; }
+.tab[aria-selected="true"] { color: var(--text-primary); border-bottom-color: var(--accent); }
+.tab .count { color: var(--text-muted); font-weight: 500; margin-left: 4px; }
+.panel[hidden] { display: none; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.filters input[type="search"] { min-width: 240px; flex: 1 1 240px; max-width: 420px; }
+.filters .spacer { flex: 1; }
+.filters .shown { color: var(--text-muted); font-size: 12px; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-1); }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; vertical-align: top; }
+th { position: sticky; top: 0; background: var(--surface-2); font-weight: 600; color: var(--text-secondary); cursor: pointer; user-select: none; font-size: 12px; }
+th[aria-sort="ascending"]::after { content: " \25B2"; font-size: 9px; }
+th[aria-sort="descending"]::after { content: " \25BC"; font-size: 9px; }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--row-hover); }
+tbody tr:last-child td { border-bottom: 0; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+td .muted, .muted { color: var(--text-muted); }
+td.cell-wrap { white-space: normal; min-width: 260px; max-width: 560px; }
+.pager { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 8px; color: var(--text-muted); font-size: 12px; }
+
+/* Detail dialog */
+dialog { border: 1px solid var(--border); border-radius: 12px; padding: 0; width: min(960px, calc(100vw - 32px)); max-height: calc(100vh - 48px); background: var(--surface-1); color: var(--text-primary); }
+dialog::backdrop { background: rgba(0,0,0,.45); }
+.dlg-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface-1); }
+.dlg-head h3 { margin: 0; font-size: 16px; }
+.dlg-body { padding: 16px 18px; overflow: auto; }
+.kv { display: grid; grid-template-columns: 200px 1fr; gap: 4px 16px; font-size: 13px; margin-bottom: 16px; }
+.kv dt { color: var(--text-muted); }
+.kv dd { margin: 0; word-break: break-word; }
+.section-title { font-size: 13px; font-weight: 600; margin: 16px 0 8px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .04em; }
+.log { font: 12px/1.5 Consolas, "Cascadia Mono", monospace; background: var(--surface-2); border-radius: 8px; padding: 10px; white-space: pre-wrap; }
+
+#tooltip { position: fixed; pointer-events: none; z-index: 50; background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.15); display: none; }
+footer { margin-top: 28px; color: var(--text-muted); font-size: 12px; }
+
+@media (max-width: 640px) {
+  .wrap { padding: 16px 16px 48px; }
+  .kv { grid-template-columns: 1fr; }
+  .kv dt { margin-top: 6px; }
+  .filters input[type="search"] { min-width: 0; max-width: none; }
+}
+@media print {
+  .toolbar, .filters, .pager, .tabs { display: none; }
+  .panel[hidden] { display: block; }
+  body { background: #fff; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1><img class="logo" alt="" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2Ij48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImciIHgxPSIwIiB5MT0iMCIgeDI9IjAiIHkyPSIxIj48c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiMyYTc4ZDYiLz48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMxYzVjYWIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48cmVjdCB4PSI4IiB5PSI4IiB3aWR0aD0iMjQwIiBoZWlnaHQ9IjI0MCIgcng9IjUyIiBmaWxsPSJ1cmwoI2cpIi8+PHJlY3QgeD0iNDYiIHk9IjY2IiB3aWR0aD0iMTI0IiBoZWlnaHQ9IjExMiIgZmlsbD0iI2ZmZiIvPjxlbGxpcHNlIGN4PSIxMDgiIGN5PSI2NiIgcng9IjYyIiByeT0iMjAiIGZpbGw9IiNmZmYiLz48ZWxsaXBzZSBjeD0iMTA4IiBjeT0iMTc4IiByeD0iNjIiIHJ5PSIyMCIgZmlsbD0iI2ZmZiIvPjxlbGxpcHNlIGN4PSIxMDgiIGN5PSI2NiIgcng9IjU3LjUiIHJ5PSIxNS41IiBmaWxsPSJub25lIiBzdHJva2U9IiMyYTc4ZDYiIHN0cm9rZS13aWR0aD0iOSIvPjxwYXRoIGQ9Ik00NiAxMTRhNjIgMjAgMCAwIDAgMTI0IDBNNDYgMTQ2YTYyIDIwIDAgMCAwIDEyNCAwIiBmaWxsPSJub25lIiBzdHJva2U9IiMyYTc4ZDYiIHN0cm9rZS13aWR0aD0iOSIvPjxjaXJjbGUgY3g9IjE3MiIgY3k9IjE3MiIgcj0iNDIiIGZpbGw9IiMxYzVjYWIiLz48Y2lyY2xlIGN4PSIxNzIiIGN5PSIxNzIiIHI9IjMzIiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMTgiLz48cGF0aCBkPSJNMjAwIDIwMGwyOCAyOCIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjI0IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4=">SQLMap <span class="tag">SQL Server discovery report</span></h1>
+      <div class="meta" id="meta"></div>
+      <div class="confidential">This report contains infrastructure details of the scanned environment. Handle and share it as confidential client data.</div>
+    </div>
+    <div class="toolbar">
+      <label for="theme" class="muted" style="font-size:12px">Theme</label>
+      <select id="theme" aria-label="Theme">
+        <option value="auto">Auto</option>
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+      </select>
+    </div>
+  </header>
+
+  <section class="kpis" id="kpis" aria-label="Summary"></section>
+
+  <section class="charts" aria-label="Charts">
+    <div class="card"><h2>Instances by service type</h2><div class="bars" id="chart-type"></div></div>
+    <div class="card"><h2>Engine components</h2><div class="bars" id="chart-components"></div></div>
+    <div class="card"><h2>Engines by version</h2><div class="bars" id="chart-version"></div></div>
+    <div class="card"><h2>Engines by edition</h2><div class="bars" id="chart-edition"></div></div>
+    <div class="card"><h2>Engine support status</h2><div class="bars" id="chart-support"></div></div>
+    <div class="card"><h2>Engine patch level</h2><div class="bars" id="chart-patch"></div><div class="muted" id="buildref-note" style="font-size:12px;margin-top:8px"></div></div>
+    <div class="card"><h2>Host scan results</h2><div class="bars" id="chart-hosts"></div></div>
+  </section>
+
+  <nav class="tabs" role="tablist" aria-label="Details">
+    <button class="tab" role="tab" aria-selected="true" aria-controls="panel-instances" id="tab-instances">Instances<span class="count" id="count-instances"></span></button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="panel-hosts" id="tab-hosts">Hosts<span class="count" id="count-hosts"></span></button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="panel-issues" id="tab-issues">Issues<span class="count" id="count-issues"></span></button>
+  </nav>
+
+  <section class="panel" id="panel-instances" role="tabpanel" aria-labelledby="tab-instances">
+    <div class="filters">
+      <input type="search" id="f-inst-text" placeholder="Search instance, version, edition, account..." aria-label="Search instances">
+      <select id="f-inst-type" aria-label="Service type"><option value="">All service types</option></select>
+      <select id="f-inst-support" aria-label="Support status"><option value="">All support statuses</option></select>
+      <select id="f-inst-patch" aria-label="Patch level">
+        <option value="">Any patch level</option><option value="Latest">On latest update</option><option value="Behind">Behind latest update</option><option value="Security">Security update missing</option><option value="Other">Not in reference / unknown</option>
+      </select>
+      <select id="f-inst-state" aria-label="State">
+        <option value="">Any state</option><option value="running">Running</option><option value="stopped">Stopped</option><option value="unknown">Unknown</option>
+      </select>
+      <span class="spacer"></span>
+      <span class="shown" id="shown-instances"></span>
+      <button id="csv-instances" type="button">Export CSV</button>
+    </div>
+    <div class="table-wrap"><table id="t-instances"></table></div>
+    <div class="pager" id="pager-instances"></div>
+  </section>
+
+  <section class="panel" id="panel-hosts" role="tabpanel" aria-labelledby="tab-hosts" hidden>
+    <div class="filters">
+      <input type="search" id="f-host-text" placeholder="Search host, IP, OS..." aria-label="Search hosts">
+      <select id="f-host-status" aria-label="Host status"><option value="">All statuses</option></select>
+      <span class="spacer"></span>
+      <span class="shown" id="shown-hosts"></span>
+      <button id="csv-hosts" type="button">Export CSV</button>
+    </div>
+    <div class="table-wrap"><table id="t-hosts"></table></div>
+    <div class="pager" id="pager-hosts"></div>
+  </section>
+
+  <section class="panel" id="panel-issues" role="tabpanel" aria-labelledby="tab-issues" hidden>
+    <p class="muted" style="margin-top:0">Hosts that could not be fully verified. "Inconclusive" means the host answered but neither the registry nor the Windows services could be read, so SQL Server may still be installed there.</p>
+    <div class="filters">
+      <input type="search" id="f-issue-text" placeholder="Search host or reason..." aria-label="Search issues">
+      <span class="spacer"></span>
+      <span class="shown" id="shown-issues"></span>
+      <button id="csv-issues" type="button">Export CSV</button>
+    </div>
+    <div class="table-wrap"><table id="t-issues"></table></div>
+    <div class="pager" id="pager-issues"></div>
+  </section>
+
+  <footer id="footer"></footer>
+</div>
+
+<dialog id="detail" aria-labelledby="detail-title">
+  <div class="dlg-head"><h3 id="detail-title"></h3><button type="button" id="detail-close">Close</button></div>
+  <div class="dlg-body" id="detail-body"></div>
+</dialog>
+<div id="tooltip" role="tooltip"></div>
+
+<script id="sqlmap-data" type="application/json">/*__SQLMAP_DATA__*/</script>
+<script>
+(function () {
+  'use strict';
+
+  // ---------- helpers ----------
+  var DATA = JSON.parse(document.getElementById('sqlmap-data').textContent);
+  function arr(v) { return v == null ? [] : (Array.isArray(v) ? v : [v]); }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function el(id) { return document.getElementById(id); }
+  function fmtNum(n, d) { if (n == null || n === '') return ''; var x = Number(n); return isNaN(x) ? String(n) : x.toLocaleString(undefined, { maximumFractionDigits: d == null ? 0 : d }); }
+  function fmtDate(s) { if (!s) return ''; return String(s).replace('T', ' ').replace(/\.\d+/, '').replace('Z', ' UTC'); }
+  function text(v) { if (v == null) return ''; if (Array.isArray(v)) return v.join(', '); if (typeof v === 'object') return JSON.stringify(v); return String(v); }
+
+  var hosts = arr(DATA.Hosts);
+  var instances = arr(DATA.Instances);
+  var summary = DATA.Summary || {};
+
+  // Failover cluster instances appear on every node: count each SqlInstance once
+  var seen = {};
+  var uniqueInstances = instances.filter(function (i) {
+    var k = (i.SqlInstance + '|' + i.ServiceType).toUpperCase();
+    if (seen[k]) return false; seen[k] = true; return true;
+  });
+  var engines = uniqueInstances.filter(function (i) { return i.ServiceType === 'Engine'; });
+
+  var SUPPORT = {
+    'Mainstream support': { cls: 'st-good', order: 1 },
+    'Supported (dates not set)': { cls: 'st-good', order: 2 },
+    'Extended support': { cls: 'st-warning', order: 3 },
+    'Out of support': { cls: 'st-critical', order: 4 },
+    'Modern lifecycle': { cls: 'st-neutral', order: 5 },
+    'Unknown': { cls: 'st-neutral', order: 6 }
+  };
+  var HOST_STATUS = {
+    SQLFound: { label: 'SQL Server found', cls: 'st-info', order: 1 },
+    NoSQLFound: { label: 'No SQL Server', cls: 'st-neutral', order: 2 },
+    Inconclusive: { label: 'Inconclusive', cls: 'st-warning', order: 3 },
+    Unreachable: { label: 'Unreachable', cls: 'st-serious', order: 4 },
+    Unresolved: { label: 'Name not resolved', cls: 'st-serious', order: 5 },
+    Timeout: { label: 'Timed out', cls: 'st-critical', order: 6 },
+    Error: { label: 'Error', cls: 'st-critical', order: 7 },
+    Cancelled: { label: 'Cancelled', cls: 'st-neutral', order: 8 }
+  };
+  var ISSUE_STATUSES = ['Inconclusive', 'Unreachable', 'Unresolved', 'Timeout', 'Error', 'Cancelled'];
+
+  function chip(label, cls) { return '<span class="chip ' + cls + '"><span class="dot" aria-hidden="true"></span>' + esc(label) + '</span>'; }
+  function supportChip(s) { var m = SUPPORT[s] || SUPPORT.Unknown; return chip(s || 'Unknown', m.cls); }
+  function hostChip(s) { var m = HOST_STATUS[s] || { label: s, cls: 'st-neutral' }; return chip(m.label, m.cls); }
+  function stateChip(i) {
+    if (i.IsRunning === true) return chip('Running', 'st-good');
+    if (i.IsRunning === false) return chip('Stopped', 'st-neutral');
+    return '<span class="muted">Unknown</span>';
+  }
+  var PATCH = {
+    'Latest': { cls: 'st-good', order: 1 },
+    'Behind': { cls: 'st-warning', order: 2 },
+    'Security update missing': { cls: 'st-critical', order: 3 },
+    'Newer than reference': { cls: 'st-neutral', order: 4 },
+    'Not covered': { cls: 'st-neutral', order: 5 },
+    'Unknown': { cls: 'st-neutral', order: 6 }
+  };
+  function levelText(i) {
+    // SQL connection gives ProductLevel (RTM/SP2) + UpdateLevel (CU17); the build reference label already has both
+    var u = i.UpdateLevel || '', pl = i.ProductLevel || '';
+    if (!u) return pl;
+    if (!pl || pl === 'RTM' || /^(SP|RTM|Newer)/.test(u) || u.indexOf(pl) >= 0) return u;
+    return pl + ' ' + u;
+  }
+  function patchText(i) {
+    if (i.PatchStatus === 'Latest') return 'Latest (' + (i.LatestUpdate || '') + ')';
+    if (i.PatchStatus === 'Behind') return i.UpdatesBehind + ' behind (latest ' + i.LatestUpdate + ')';
+    if (i.PatchStatus === 'Security update missing') return 'Security update missing, ' + i.UpdatesBehind + ' behind (latest ' + i.LatestUpdate + ')';
+    if (i.PatchStatus === 'Newer than reference') return 'Newer than reference';
+    if (i.PatchStatus === 'Not covered') return 'Not in reference';
+    return '';
+  }
+  function patchChip(i) {
+    var t = patchText(i);
+    if (!t) return '<span class="muted">-</span>';
+    return chip(t, (PATCH[i.PatchStatus] || PATCH.Unknown).cls);
+  }
+  function probeChip(v) {
+    if (!v || v === 'Skipped') return '<span class="muted">-</span>';
+    if (v === 'OK' || v === 'Open') return chip(v, 'st-good');
+    if (v === 'AccessDenied') return chip('Denied', 'st-critical');
+    if (v === 'NoReply' || v === 'Closed' || v === 'NoTarget' || v === 'NoReverse' || v === 'NotSql') return '<span class="muted">' + esc(v) + '</span>';
+    return chip(v, 'st-warning');
+  }
+
+  // ---------- theme ----------
+  var themeSel = el('theme');
+  function applyTheme(v) {
+    if (v === 'light' || v === 'dark') document.documentElement.setAttribute('data-theme', v);
+    else document.documentElement.removeAttribute('data-theme');
+  }
+  try { var saved = localStorage.getItem('sqlmap-theme'); if (saved) { themeSel.value = saved; applyTheme(saved); } } catch (e) { }
+  themeSel.addEventListener('change', function () {
+    applyTheme(themeSel.value);
+    try { localStorage.setItem('sqlmap-theme', themeSel.value); } catch (e) { }
+  });
+
+  // ---------- header ----------
+  var p = DATA.Parameters || {};
+  el('meta').innerHTML = [
+    ['Scan date', fmtDate(DATA.StartTime)],
+    ['Duration', fmtNum(DATA.DurationSec, 1) + ' s'],
+    ['Run by', DATA.RunBy],
+    ['From', DATA.RunFrom],
+    ['Discovery', arr(p.Discovery).join(', ')],
+    ['Probes', arr(p.Probes).join(', ')],
+    ['Build reference', p.BuildReference ? p.BuildReference + ' (Microsoft Learn)' : 'not available']
+  ].map(function (x) { return '<span>' + esc(x[0]) + ': <b>' + esc(x[1]) + '</b></span>'; }).join('') +
+    (DATA.Cancelled ? '<span>' + chip('Scan was cancelled - results are partial', 'st-warning') + '</span>' : '');
+
+  // The "latest CU" is only as current as the build reference file
+  var refAgeDays = null;
+  if (p.BuildReference && DATA.StartTime) {
+    refAgeDays = Math.round((new Date(DATA.StartTime) - new Date(p.BuildReference)) / 86400000);
+  }
+  var refMaxAge = p.BuildReferenceMaxAgeDays || 30;
+  var refNote = !p.BuildReference ? 'No build reference file: run Update-SQLMapBuildReference to see update levels.'
+    : 'Latest updates as of the build reference retrieved ' + p.BuildReference + (refAgeDays != null ? ' (' + refAgeDays + ' days before the scan)' : '') + '.';
+  el('buildref-note').innerHTML = (refAgeDays != null && refAgeDays > refMaxAge ? chip('Build reference older than ' + refMaxAge + ' days', 'st-warning') + ' ' : '') + esc(refNote) +
+    (p.BuildReference ? ' Source: Microsoft Learn build lists, SQL Server 2008-2025. Each build is compared with the latest update of its branch (CU or GDR) on the newest service pack.' : '');
+  el('footer').textContent = 'Generated by ' + (DATA.Tool || 'SQLMap') + ' ' + (DATA.ToolVersion || '') + ' - scan id ' + (DATA.ScanId || '');
+
+  // ---------- KPIs ----------
+  var TYPE_ORDER = ['Engine', 'SSAS', 'SSRS', 'PBIRS', 'SSIS'];
+  var TYPE_LABEL = { Engine: 'Database Engine', SSAS: 'Analysis Services (SSAS)', SSRS: 'Reporting Services (SSRS)', PBIRS: 'Power BI Report Server', SSIS: 'Integration Services (SSIS)' };
+  function typeSummary() {
+    return TYPE_ORDER.map(function (t) {
+      var n = uniqueInstances.filter(function (i) { return i.ServiceType === t; }).length;
+      return n ? n + ' ' + t : null;
+    }).filter(Boolean).join(', ') || 'none';
+  }
+  var notVerified = hosts.filter(function (h) { return ISSUE_STATUSES.indexOf(h.Status) >= 0; }).length;
+  var oos = engines.filter(function (i) { return i.SupportStatus === 'Out of support'; }).length;
+  var running = engines.filter(function (i) { return i.IsRunning === true; }).length;
+  var behind = engines.filter(function (i) { return i.PatchStatus === 'Behind' || i.PatchStatus === 'Security update missing'; }).length;
+  var noSecurity = engines.filter(function (i) { return i.PatchStatus === 'Security update missing'; }).length;
+  var kpis = [
+    { label: 'Hosts scanned', value: hosts.length, sub: fmtNum(summary.HostsReachable) + ' reachable' },
+    { label: 'Hosts with SQL Server', value: summary.HostsWithSql, sub: hosts.length ? Math.round(100 * (summary.HostsWithSql || 0) / hosts.length) + '% of scanned hosts' : '' },
+    { label: 'SQL Server instances', value: uniqueInstances.length, sub: typeSummary() + ' - ' + running + ' engines running' },
+    { label: 'Engines out of support', value: oos, status: oos ? chip('Upgrade needed', 'st-critical') : chip('None', 'st-good') },
+    { label: 'Engines behind latest update', value: behind, status: noSecurity ? chip(noSecurity === 1 ? '1 missing a security update' : noSecurity + ' missing security updates', 'st-critical') : behind ? chip('Patching needed', 'st-warning') : chip(p.BuildReference ? 'None' : 'No build reference', p.BuildReference ? 'st-good' : 'st-neutral') },
+    { label: 'Hosts not verified', value: notVerified, sub: summary.HostsAccessDenied ? summary.HostsAccessDenied + ' access denied: scan with a local administrator account' : '', status: notVerified ? chip('See Issues tab', 'st-warning') : chip('None', 'st-good') }
+  ];
+  el('kpis').innerHTML = kpis.map(function (k) {
+    return '<div class="card kpi"><div class="label">' + esc(k.label) + '</div><div class="value">' + fmtNum(k.value) + '</div>' +
+      (k.status ? '<div class="status">' + k.status + '</div>' : '') + (k.sub || !k.status ? '<div class="sub">' + esc(k.sub || '') + '</div>' : '') + '</div>';
+  }).join('');
+
+  // ---------- bar lists ----------
+  var tooltip = el('tooltip');
+  function showTip(e, html) {
+    tooltip.innerHTML = html; tooltip.style.display = 'block';
+    var x = e.clientX + 14, y = e.clientY + 14, r = tooltip.getBoundingClientRect();
+    if (x + r.width > window.innerWidth - 8) x = e.clientX - r.width - 14;
+    if (y + r.height > window.innerHeight - 8) y = e.clientY - r.height - 14;
+    tooltip.style.left = x + 'px'; tooltip.style.top = y + 'px';
+  }
+  function hideTip() { tooltip.style.display = 'none'; }
+
+  function countBy(list, fn) {
+    var m = {};
+    list.forEach(function (x) { var k = fn(x); if (k == null || k === '') k = 'Unknown'; m[k] = (m[k] || 0) + 1; });
+    return Object.keys(m).map(function (k) { return { key: k, n: m[k] }; });
+  }
+  function renderBars(containerId, rows, opts) {
+    var c = el(containerId);
+    if (!rows.length) { c.innerHTML = '<div class="empty">No data</div>'; return; }
+    // opts.total: parts can overlap (components), so shares are of a fixed whole and bars are meters against it
+    var total = opts.total || rows.reduce(function (a, r) { return a + r.n; }, 0);
+    var max = opts.total || Math.max.apply(null, rows.map(function (r) { return r.n; }));
+    c.innerHTML = rows.map(function (r, idx) {
+      var pct = total ? Math.round(100 * r.n / total) : 0;
+      var color = r.color ? 'background:' + r.color + ';' : '';
+      return '<div class="bar-row" data-idx="' + idx + '">' +
+        '<div class="name" title="' + esc(r.key) + '">' + (r.labelHtml || esc(r.key)) + '</div>' +
+        '<div class="track"><div class="fill" style="' + color + 'width:' + (100 * r.n / max).toFixed(1) + '%"></div></div>' +
+        '<div class="num">' + fmtNum(r.n) + '<small>' + pct + '%</small></div></div>';
+    }).join('');
+    Array.prototype.forEach.call(c.querySelectorAll('.bar-row'), function (rowEl) {
+      var r = rows[+rowEl.getAttribute('data-idx')];
+      var pct = total ? (100 * r.n / total).toFixed(1) : 0;
+      rowEl.addEventListener('mousemove', function (e) {
+        showTip(e, '<b>' + esc(r.key) + '</b><br>' + fmtNum(r.n) + ' ' + esc(opts.unit) + ' (' + pct + '% of ' + fmtNum(total) + (opts.totalLabel ? ' ' + esc(opts.totalLabel) : '') + ')');
+      });
+      rowEl.addEventListener('mouseleave', hideTip);
+    });
+  }
+
+  // service type: fixed product order
+  var byType = countBy(uniqueInstances, function (i) { return i.ServiceType; });
+  byType.forEach(function (r) { r.order = TYPE_ORDER.indexOf(r.key) < 0 ? 99 : TYPE_ORDER.indexOf(r.key); r.labelHtml = esc(TYPE_LABEL[r.key] || r.key); });
+  byType.sort(function (a, b) { return a.order - b.order; });
+  renderBars('chart-type', byType, { unit: 'instances' });
+
+  // engine components: how many engines have each one (an engine can have several)
+  var compCount = {};
+  engines.forEach(function (i) { arr(i.Components).forEach(function (c) { compCount[c] = (compCount[c] || 0) + 1; }); });
+  var byComp = Object.keys(compCount).map(function (k) { return { key: k, n: compCount[k] }; }).sort(function (a, b) { return b.n - a.n; });
+  renderBars('chart-components', byComp, { unit: 'engines', total: engines.length, totalLabel: 'engines' });
+
+  // version: newest first (natural order)
+  var byVersion = countBy(engines, function (i) { return i.ProductName; });
+  var majorOf = {}; engines.forEach(function (i) { if (i.ProductName) majorOf[i.ProductName] = i.MajorVersion || 0; });
+  byVersion.sort(function (a, b) { return (majorOf[b.key] || -1) - (majorOf[a.key] || -1) || b.key.localeCompare(a.key); });
+  renderBars('chart-version', byVersion, { unit: 'engines' });
+
+  var byEdition = countBy(engines, function (i) { return i.Edition ? String(i.Edition).replace(/\s*\((64|32)-bit\)/, '') : null; });
+  byEdition.sort(function (a, b) { return b.n - a.n; });
+  if (byEdition.length > 8) {
+    var rest = byEdition.slice(7).reduce(function (a, r) { return a + r.n; }, 0);
+    byEdition = byEdition.slice(0, 7).concat([{ key: 'Other', n: rest }]);
+  }
+  renderBars('chart-edition', byEdition, { unit: 'engines' });
+
+  var colorVar = { 'st-good': 'var(--good)', 'st-warning': 'var(--warning)', 'st-serious': 'var(--serious)', 'st-critical': 'var(--critical)', 'st-neutral': 'var(--neutral-bar)', 'st-info': 'var(--series-1)' };
+  var bySupport = countBy(engines, function (i) { return i.SupportStatus; });
+  bySupport.forEach(function (r) { var m = SUPPORT[r.key] || SUPPORT.Unknown; r.color = colorVar[m.cls]; r.labelHtml = chip(r.key, m.cls); r.order = m.order; });
+  bySupport.sort(function (a, b) { return a.order - b.order; });
+  renderBars('chart-support', bySupport, { unit: 'engines' });
+
+  var byPatch = countBy(engines, function (i) { return i.PatchStatus; });
+  byPatch.forEach(function (r) {
+    var m = PATCH[r.key] || PATCH.Unknown;
+    r.color = colorVar[m.cls]; r.order = m.order;
+    var label = r.key === 'Latest' ? 'On latest update' : r.key === 'Behind' ? 'Behind latest update' : r.key === 'Not covered' ? 'Not in reference' : r.key;
+    r.labelHtml = chip(label, m.cls); r.key = label;
+  });
+  byPatch.sort(function (a, b) { return a.order - b.order; });
+  renderBars('chart-patch', byPatch, { unit: 'engines' });
+
+  var byHost = countBy(hosts, function (h) { return h.Status; });
+  byHost.forEach(function (r) { var m = HOST_STATUS[r.key] || { label: r.key, cls: 'st-neutral', order: 99 }; r.color = colorVar[m.cls]; r.labelHtml = chip(m.label, m.cls); r.order = m.order; r.key = m.label; });
+  byHost.sort(function (a, b) { return a.order - b.order; });
+  renderBars('chart-hosts', byHost, { unit: 'hosts' });
+
+  // ---------- generic table ----------
+  var PAGE = 200;
+  function makeTable(cfg) {
+    var state = { sortKey: cfg.defaultSort || null, sortDir: 1, page: 0, rows: [] };
+    var table = el(cfg.tableId);
+    function sortVal(col, r) { var v = col.sort ? col.sort(r) : col.get(r); return v == null ? '' : v; }
+    function filtered() {
+      var rows = cfg.rows.filter(cfg.filter);
+      if (state.sortKey) {
+        var col = cfg.columns.filter(function (c) { return c.key === state.sortKey; })[0];
+        rows.sort(function (a, b) {
+          var x = sortVal(col, a), y = sortVal(col, b);
+          if (typeof x === 'number' && typeof y === 'number') return (x - y) * state.sortDir;
+          return String(x).localeCompare(String(y), undefined, { numeric: true }) * state.sortDir;
+        });
+      }
+      return rows;
+    }
+    function render() {
+      state.rows = filtered();
+      var pages = Math.max(1, Math.ceil(state.rows.length / PAGE));
+      if (state.page >= pages) state.page = pages - 1;
+      var slice = state.rows.slice(state.page * PAGE, (state.page + 1) * PAGE);
+      var head = '<thead><tr>' + cfg.columns.map(function (c) {
+        var s = state.sortKey === c.key ? (state.sortDir === 1 ? 'ascending' : 'descending') : 'none';
+        return '<th scope="col" data-key="' + c.key + '" aria-sort="' + s + '">' + esc(c.label) + '</th>';
+      }).join('') + '</tr></thead>';
+      var body = '<tbody>' + (slice.length ? slice.map(function (r, i) {
+        return '<tr tabindex="0" data-i="' + (state.page * PAGE + i) + '">' + cfg.columns.map(function (c) {
+          var cls = c.cls ? ' class="' + c.cls + '"' : '';
+          return '<td' + cls + '>' + (c.html ? c.html(r) : esc(c.get(r))) + '</td>';
+        }).join('') + '</tr>';
+      }).join('') : '<tr><td colspan="' + cfg.columns.length + '" class="muted">No rows match the filters.</td></tr>') + '</tbody>';
+      table.innerHTML = head + body;
+      el(cfg.shownId).textContent = fmtNum(state.rows.length) + ' of ' + fmtNum(cfg.rows.length) + ' shown';
+      var pager = el(cfg.pagerId);
+      if (pages > 1) {
+        pager.innerHTML = '<button type="button" data-p="-1">Previous</button><span>Page ' + (state.page + 1) + ' of ' + pages + '</span><button type="button" data-p="1">Next</button>';
+        Array.prototype.forEach.call(pager.querySelectorAll('button'), function (b) {
+          b.addEventListener('click', function () { state.page = Math.min(pages - 1, Math.max(0, state.page + (+b.getAttribute('data-p')))); render(); });
+        });
+      } else pager.innerHTML = '';
+    }
+    table.addEventListener('click', function (e) {
+      var th = e.target.closest('th');
+      if (th) {
+        var k = th.getAttribute('data-key');
+        if (state.sortKey === k) state.sortDir = -state.sortDir; else { state.sortKey = k; state.sortDir = 1; }
+        render(); return;
+      }
+      var tr = e.target.closest('tbody tr[data-i]');
+      if (tr && cfg.onOpen) cfg.onOpen(state.rows[+tr.getAttribute('data-i')]);
+    });
+    table.addEventListener('keydown', function (e) {
+      var tr = e.target.closest('tbody tr[data-i]');
+      if (tr && (e.key === 'Enter' || e.key === ' ') && cfg.onOpen) { e.preventDefault(); cfg.onOpen(state.rows[+tr.getAttribute('data-i')]); }
+    });
+    el(cfg.csvId).addEventListener('click', function () {
+      var cols = cfg.csvColumns || cfg.columns;
+      var lines = [cols.map(function (c) { return csvCell(c.label); }).join(',')];
+      state.rows.forEach(function (r) { lines.push(cols.map(function (c) { return csvCell(text(c.get(r))); }).join(',')); });
+      download(cfg.csvName, '﻿' + lines.join('\r\n'), 'text/csv;charset=utf-8');
+    });
+    (cfg.inputs || []).forEach(function (id) {
+      el(id).addEventListener('input', function () { state.page = 0; render(); });
+      el(id).addEventListener('change', function () { state.page = 0; render(); });
+    });
+    render();
+    return { render: render };
+  }
+  function csvCell(v) { var s = String(v == null ? '' : v); return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+  function download(name, content, type) {
+    var blob = new Blob([content], { type: type });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  }
+  function fillSelect(id, values) {
+    var s = el(id);
+    values.forEach(function (v) { var o = document.createElement('option'); o.value = v; o.textContent = v; s.appendChild(o); });
+  }
+  function uniq(list) { return list.filter(function (v, i, a) { return v != null && v !== '' && a.indexOf(v) === i; }); }
+
+  // ---------- instances ----------
+  fillSelect('f-inst-type', uniq(instances.map(function (i) { return i.ServiceType; })).sort());
+  fillSelect('f-inst-support', uniq(instances.map(function (i) { return i.SupportStatus; })).sort(function (a, b) { return ((SUPPORT[a] || {}).order || 9) - ((SUPPORT[b] || {}).order || 9); }));
+  var instCols = [
+    { key: 'SqlInstance', label: 'Instance', get: function (i) { return i.SqlInstance; }, html: function (i) { return '<b>' + esc(i.SqlInstance) + '</b>'; } },
+    { key: 'ServiceType', label: 'Type', get: function (i) { return i.ServiceType; } },
+    { key: 'ProductName', label: 'Product', get: function (i) { return i.ProductName; }, sort: function (i) { return i.MajorVersion || 0; } },
+    { key: 'Version', label: 'Build', get: function (i) { return i.Version; } },
+    { key: 'UpdateLevel', label: 'Level', get: function (i) { return levelText(i); } },
+    { key: 'PatchStatus', label: 'Latest update', get: patchText, html: patchChip, sort: function (i) { return ((PATCH[i.PatchStatus] || PATCH.Unknown).order * 1000) + (i.UpdatesBehind || 0); } },
+    { key: 'Edition', label: 'Edition', get: function (i) { return i.Edition; } },
+    { key: 'Components', label: 'Components', get: function (i) { return arr(i.Components).join(', '); } },
+    { key: 'IsRunning', label: 'State', get: function (i) { return i.IsRunning === true ? 'Running' : i.IsRunning === false ? 'Stopped' : 'Unknown'; }, html: stateChip },
+    { key: 'TcpPort', label: 'Port', cls: 'num', get: function (i) { return i.TcpPort == null ? '' : i.TcpPort + (i.DynamicPort ? ' (dyn)' : ''); }, sort: function (i) { return i.TcpPort || 0; } },
+    { key: 'Clustered', label: 'Cluster', get: function (i) { return i.Clustered ? (i.ClusterName || 'Yes') : ''; } },
+    { key: 'SupportStatus', label: 'Support', get: function (i) { return i.SupportStatus; }, html: function (i) { return supportChip(i.SupportStatus); }, sort: function (i) { return (SUPPORT[i.SupportStatus] || SUPPORT.Unknown).order; } },
+    { key: 'ExtendedEndDate', label: 'Extended end', get: function (i) { return i.ExtendedEndDate; } },
+    { key: 'ServiceAccount', label: 'Service account', get: function (i) { return i.ServiceAccount; } },
+    { key: 'Confidence', label: 'Confidence', get: function (i) { return i.Confidence; }, sort: function (i) { return { High: 1, Medium: 2, Low: 3 }[i.Confidence] || 4; } },
+    { key: 'DetectedBy', label: 'Detected by', get: function (i) { return arr(i.DetectedBy).join(', '); } }
+  ];
+  var instCsvCols = instCols.concat([
+    { key: 'ServicingBranch', label: 'Servicing branch', get: function (i) { return i.ServicingBranch; } },
+    { key: 'LatestBuild', label: 'Latest build', get: function (i) { return i.LatestBuild; } },
+    { key: 'SecurityUpdateBuild', label: 'Latest security update build', get: function (i) { return i.SecurityUpdateBuild; } },
+    { key: 'LatestKB', label: 'Latest KB', get: function (i) { return i.LatestKB; } },
+    { key: 'UpdatesBehind', label: 'Updates behind', get: function (i) { return i.UpdatesBehind; } },
+    { key: 'ComputerName', label: 'ComputerName', get: function (i) { return i.ComputerName; } },
+    { key: 'InstanceName', label: 'InstanceName', get: function (i) { return i.InstanceName; } },
+    { key: 'DatabaseCount', label: 'Databases', get: function (i) { return i.DatabaseCount; } },
+    { key: 'DataSizeGB', label: 'Data GB', get: function (i) { return i.DataSizeGB; } },
+    { key: 'LogSizeGB', label: 'Log GB', get: function (i) { return i.LogSizeGB; } },
+    { key: 'Collation', label: 'Collation', get: function (i) { return i.Collation; } },
+    { key: 'Notes', label: 'Notes', get: function (i) { return arr(i.Notes).join(' | '); } }
+  ]);
+  var instTable = makeTable({
+    tableId: 't-instances', shownId: 'shown-instances', pagerId: 'pager-instances', csvId: 'csv-instances', csvName: 'sqlmap-instances.csv',
+    rows: instances, columns: instCols, csvColumns: instCsvCols, defaultSort: 'SqlInstance',
+    inputs: ['f-inst-text', 'f-inst-type', 'f-inst-support', 'f-inst-patch', 'f-inst-state'],
+    filter: function (i) {
+      var t = el('f-inst-text').value.trim().toLowerCase();
+      var ty = el('f-inst-type').value, su = el('f-inst-support').value, stt = el('f-inst-state').value, pa = el('f-inst-patch').value;
+      if (ty && i.ServiceType !== ty) return false;
+      if (su && i.SupportStatus !== su) return false;
+      if (pa === 'Latest' && i.PatchStatus !== 'Latest') return false;
+      if (pa === 'Behind' && i.PatchStatus !== 'Behind' && i.PatchStatus !== 'Security update missing') return false;
+      if (pa === 'Security' && i.PatchStatus !== 'Security update missing') return false;
+      if (pa === 'Other' && (i.PatchStatus === 'Latest' || i.PatchStatus === 'Behind' || i.PatchStatus === 'Security update missing')) return false;
+      if (stt === 'running' && i.IsRunning !== true) return false;
+      if (stt === 'stopped' && i.IsRunning !== false) return false;
+      if (stt === 'unknown' && i.IsRunning != null) return false;
+      if (t) {
+        var hay = [i.SqlInstance, i.ComputerName, i.ServiceType, i.ProductName, i.Version, i.Edition, i.UpdateLevel, i.ServiceAccount, i.ClusterName, arr(i.DetectedBy).join(' '), arr(i.Components).join(' ')].join(' ').toLowerCase();
+        if (hay.indexOf(t) < 0) return false;
+      }
+      return true;
+    },
+    onOpen: openInstance
+  });
+
+  // ---------- hosts ----------
+  fillSelect('f-host-status', uniq(hosts.map(function (h) { return h.Status; })));
+  function hi(h) { return h.HostInfo || {}; }
+  // 'Engine 1, SSRS 1' (Import-SQLMapScan fills it in for scans saved before the field existed)
+  function hostTypes(h) { return h.InstanceTypes || ''; }
+  var hostCols = [
+    { key: 'ComputerName', label: 'Host', get: function (h) { return h.ComputerName; }, html: function (h) { return '<b>' + esc(h.ComputerName) + '</b>'; } },
+    { key: 'IPAddress', label: 'IP', get: function (h) { return h.IPAddress; } },
+    { key: 'Status', label: 'Status', get: function (h) { return h.Status; }, html: function (h) { return hostChip(h.Status); }, sort: function (h) { return (HOST_STATUS[h.Status] || {}).order || 99; } },
+    { key: 'InstanceCount', label: 'Instances', cls: 'num', get: function (h) { return h.InstanceCount; }, sort: function (h) { return h.InstanceCount || 0; } },
+    { key: 'InstanceTypes', label: 'Types', get: hostTypes, html: function (h) { var t = hostTypes(h); return t ? esc(t) : '<span class="muted">-</span>'; } },
+    { key: 'OS', label: 'Operating system', get: function (h) { return hi(h).OSCaption || h.AdOperatingSystem; } },
+    { key: 'Cores', label: 'Cores', cls: 'num', get: function (h) { return hi(h).Cores; }, sort: function (h) { return hi(h).Cores || 0; } },
+    { key: 'MemoryGB', label: 'Memory GB', cls: 'num', get: function (h) { return hi(h).MemoryGB; }, sort: function (h) { return hi(h).MemoryGB || 0; } },
+    { key: 'IsVirtual', label: 'Virtual', get: function (h) { var v = hi(h).IsVirtual; return v === true ? 'Yes' : v === false ? 'No' : ''; } },
+    { key: 'Ping', label: 'Ping', get: function (h) { return (h.Probes || {}).Ping; }, html: function (h) { return probeChip((h.Probes || {}).Ping); } },
+    { key: 'Registry', label: 'Registry', get: function (h) { return (h.Probes || {}).Registry; }, html: function (h) { return probeChip((h.Probes || {}).Registry); } },
+    { key: 'Service', label: 'Services', get: function (h) { return (h.Probes || {}).Service; }, html: function (h) { return probeChip((h.Probes || {}).Service); } },
+    { key: 'Browser', label: 'Browser', get: function (h) { return (h.Probes || {}).Browser; }, html: function (h) { return probeChip((h.Probes || {}).Browser); } },
+    { key: 'Prelogin', label: 'TDS handshake', get: function (h) { return (h.Probes || {}).Prelogin; }, html: function (h) { return probeChip((h.Probes || {}).Prelogin); } },
+    { key: 'SqlConnect', label: 'SQL connect', get: function (h) { return (h.Probes || {}).SqlConnect; }, html: function (h) { return probeChip((h.Probes || {}).SqlConnect); } },
+    { key: 'DurationMs', label: 'Scan ms', cls: 'num', get: function (h) { return h.DurationMs; }, sort: function (h) { return h.DurationMs || 0; } }
+  ];
+  makeTable({
+    tableId: 't-hosts', shownId: 'shown-hosts', pagerId: 'pager-hosts', csvId: 'csv-hosts', csvName: 'sqlmap-hosts.csv',
+    rows: hosts, columns: hostCols, defaultSort: 'ComputerName', inputs: ['f-host-text', 'f-host-status'],
+    filter: function (h) {
+      var t = el('f-host-text').value.trim().toLowerCase(), st = el('f-host-status').value;
+      if (st && h.Status !== st) return false;
+      if (t) {
+        var hay = [h.ComputerName, h.DnsName, h.IPAddress, hi(h).OSCaption, h.AdOperatingSystem, h.Status, arr(h.Sources).join(' ')].join(' ').toLowerCase();
+        if (hay.indexOf(t) < 0) return false;
+      }
+      return true;
+    },
+    onOpen: openHost
+  });
+
+  // ---------- issues ----------
+  var issues = hosts.filter(function (h) { return ISSUE_STATUSES.indexOf(h.Status) >= 0; });
+  function reason(h) {
+    var parts = [];
+    if (h.StatusDetail) parts.push(h.StatusDetail);
+    var pm = h.ProbeMessages || {};
+    Object.keys(pm).forEach(function (k) {
+      // skip messages already contained in the status detail
+      if (k !== 'RegistryMethod' && pm[k] && String(h.StatusDetail || '').indexOf(pm[k]) < 0) parts.push(k + ': ' + pm[k]);
+    });
+    return parts.join(' | ');
+  }
+  makeTable({
+    tableId: 't-issues', shownId: 'shown-issues', pagerId: 'pager-issues', csvId: 'csv-issues', csvName: 'sqlmap-issues.csv',
+    rows: issues, defaultSort: 'Status', inputs: ['f-issue-text'],
+    columns: [
+      { key: 'ComputerName', label: 'Host', get: function (h) { return h.ComputerName; }, html: function (h) { return '<b>' + esc(h.ComputerName) + '</b>'; } },
+      { key: 'IPAddress', label: 'IP', get: function (h) { return h.IPAddress; } },
+      { key: 'Status', label: 'Status', get: function (h) { return h.Status; }, html: function (h) { return hostChip(h.Status); }, sort: function (h) { return (HOST_STATUS[h.Status] || {}).order || 99; } },
+      { key: 'OpenPorts', label: 'Open ports', get: function (h) { return arr(h.OpenPorts).join(', '); } },
+      { key: 'Reason', label: 'Reason', cls: 'cell-wrap', get: reason }
+    ],
+    filter: function (h) {
+      var t = el('f-issue-text').value.trim().toLowerCase();
+      return !t || [h.ComputerName, h.IPAddress, h.Status, reason(h)].join(' ').toLowerCase().indexOf(t) >= 0;
+    },
+    onOpen: openHost
+  });
+
+  // ---------- tabs ----------
+  el('count-instances').textContent = instances.length;
+  el('count-hosts').textContent = hosts.length;
+  el('count-issues').textContent = issues.length;
+  var tabs = ['instances', 'hosts', 'issues'];
+  tabs.forEach(function (t) {
+    el('tab-' + t).addEventListener('click', function () {
+      tabs.forEach(function (o) {
+        el('tab-' + o).setAttribute('aria-selected', o === t ? 'true' : 'false');
+        el('panel-' + o).hidden = o !== t;
+      });
+    });
+  });
+
+  // ---------- detail dialog ----------
+  var dlg = el('detail');
+  el('detail-close').addEventListener('click', function () { dlg.close(); });
+  dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
+  function kv(pairs) {
+    return '<dl class="kv">' + pairs.filter(function (p) { return p[1] != null && p[1] !== '' && !(Array.isArray(p[1]) && !p[1].length); })
+      .map(function (p) { return '<dt>' + esc(p[0]) + '</dt><dd>' + (p[2] ? p[1] : esc(text(p[1]))) + '</dd>'; }).join('') + '</dl>';
+  }
+  function miniTable(rows, cols) {
+    if (!rows.length) return '<div class="empty">None</div>';
+    return '<div class="table-wrap"><table><thead><tr>' + cols.map(function (c) { return '<th>' + esc(c[0]) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      rows.map(function (r) { return '<tr>' + cols.map(function (c) { return '<td>' + esc(text(r[c[1]])) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>';
+  }
+  function openDialog(title, html) {
+    el('detail-title').textContent = title;
+    el('detail-body').innerHTML = html;
+    if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
+  }
+  function openInstance(i) {
+    var html = kv([
+      ['Instance', i.SqlInstance], ['Computer', i.ComputerName], ['Service type', i.ServiceType], ['Instance id', i.InstanceId],
+      ['Product', i.ProductName], ['Build', i.Version], ['Build read from', i.VersionSource], ['Product level', i.ProductLevel], ['Update level', i.UpdateLevel], ['Update reference', i.UpdateReference],
+      ['Patch status', patchChip(i), true], ['Servicing branch', i.ServicingBranch], ['Latest update', i.LatestUpdate], ['Latest build', i.LatestBuild], ['Latest update KB', i.LatestKB],
+      ['Latest security update build', i.SecurityUpdateBuild],
+      ['Updates behind', i.UpdatesBehind],
+      ['Edition', i.Edition], ['Components', arr(i.Components)], ['SSISDB catalog', i.SsisCatalog == null ? null : (i.SsisCatalog ? 'Yes' : 'No')],
+      ['Support', supportChip(i.SupportStatus), true], ['Mainstream end', i.MainstreamEndDate], ['Extended end', i.ExtendedEndDate],
+      ['State', stateChip(i), true], ['Service', i.ServiceName], ['Service state', i.ServiceState], ['Start mode', i.StartMode], ['Service account', i.ServiceAccount],
+      ['Agent state', i.AgentState], ['Last registry heartbeat', fmtDate(i.LastHeartbeatUtc)],
+      ['TCP port', i.TcpPort == null ? null : i.TcpPort + (i.DynamicPort ? ' (dynamic)' : '')],
+      ['Clustered', i.Clustered ? 'Yes' : null], ['Cluster name', i.ClusterName], ['Cluster nodes', arr(i.ClusterNodes)],
+      ['Server name', i.ServerName], ['Collation', i.Collation], ['HADR enabled', i.IsHadrEnabled == null ? null : (i.IsHadrEnabled ? 'Yes' : 'No')],
+      ['Databases', i.DatabaseCount], ['Data size GB', i.DataSizeGB], ['Log size GB', i.LogSizeGB], ['Max server memory MB', i.MaxServerMemoryMB],
+      ['SQL CPU count', i.CpuCount], ['SQL start time', fmtDate(i.SqlStartTime)],
+      ['SQL connect', i.SqlConnectStatus], ['SQL connect message', i.SqlConnectMessage],
+      ['Confidence', i.Confidence], ['Detected by', arr(i.DetectedBy)], ['Notes', arr(i.Notes).join(' | ')]
+    ]);
+    var h = hosts.filter(function (x) { return x.ComputerName === i.ComputerName; })[0];
+    if (h) html += '<button type="button" id="open-host">Open host ' + esc(h.ComputerName) + '</button>';
+    openDialog(i.SqlInstance + ' (' + i.ServiceType + ')', html);
+    if (h) el('open-host').addEventListener('click', function () { openHost(h); });
+  }
+  function openHost(h) {
+    var info = hi(h), pr = h.Probes || {}, pm = h.ProbeMessages || {};
+    var html = kv([
+      ['Status', hostChip(h.Status), true], ['Detail', h.StatusDetail], ['DNS name', h.DnsName], ['IP address', h.IPAddress],
+      ['Discovered by', arr(h.Sources)], ['Open ports', arr(h.OpenPorts)], ['OS', info.OSCaption || h.AdOperatingSystem], ['OS version', info.OSVersion],
+      ['Domain', info.Domain], ['Manufacturer / model', [info.Manufacturer, info.Model].filter(Boolean).join(' / ')], ['Virtual', info.IsVirtual == null ? null : (info.IsVirtual ? 'Yes' : 'No')],
+      ['Sockets / cores / logical', info.Cores == null ? null : [info.Sockets, info.Cores, info.LogicalProcessors].join(' / ')], ['Memory GB', info.MemoryGB],
+      ['Last boot', fmtDate(info.LastBootTime)], ['SPNs', arr(h.SPNs)], ['Scan duration ms', h.DurationMs]
+    ]);
+    html += '<div class="section-title">Probes</div>' + miniTable(Object.keys(pr).map(function (k) { return { p: k, r: pr[k], m: pm[k] || (k === 'Registry' ? pm.RegistryMethod : '') }; }), [['Probe', 'p'], ['Result', 'r'], ['Message', 'm']]);
+    var hostInst = instances.filter(function (x) { return x.ComputerName === h.ComputerName; });
+    html += '<div class="section-title">Instances</div>' + miniTable(hostInst, [['Instance', 'SqlInstance'], ['Type', 'ServiceType'], ['Product', 'ProductName'], ['Build', 'Version'], ['Edition', 'Edition'], ['Support', 'SupportStatus']]);
+    html += '<div class="section-title">SQL Server services</div>' + miniTable(arr(h.Services), [['Name', 'Name'], ['Type', 'ServiceType'], ['Instance', 'InstanceName'], ['State', 'State'], ['Start mode', 'StartMode'], ['Account', 'StartName']]);
+    html += '<div class="section-title">Scan log</div><div class="log">' + esc(arr(h.Log).map(function (l) { return l.Time + '  ' + l.Level + '  ' + l.Message; }).join('\n')) + '</div>';
+    openDialog(h.ComputerName, html);
+  }
+})();
+</script>
+<noscript><p style="padding:16px">This report needs JavaScript enabled. The same data is available in the JSON/CSV files produced by the scan.</p></noscript>
+</body>
+</html>

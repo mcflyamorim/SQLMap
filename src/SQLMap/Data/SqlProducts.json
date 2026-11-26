@@ -1,0 +1,18 @@
+{
+  "lastReviewed": "2026-11-25",
+  "source": "https://learn.microsoft.com/lifecycle/products/?terms=sql%20server",
+  "notes": "Dates are the Microsoft fixed-lifecycle end dates (mainstream / extended). Review periodically. Null dates mean 'not set in this file yet'.",
+  "products": [
+    { "major": 8,  "minor": 0,  "name": "SQL Server 2000",    "mainstreamEnd": "2008-04-08", "extendedEnd": "2013-04-09" },
+    { "major": 9,  "minor": 0,  "name": "SQL Server 2005",    "mainstreamEnd": "2011-04-12", "extendedEnd": "2016-04-12" },
+    { "major": 10, "minor": 0,  "name": "SQL Server 2008",    "mainstreamEnd": "2014-07-08", "extendedEnd": "2019-07-09" },
+    { "major": 10, "minor": 50, "name": "SQL Server 2008 R2", "mainstreamEnd": "2014-07-08", "extendedEnd": "2019-07-09" },
+    { "major": 11, "minor": 0,  "name": "SQL Server 2012",    "mainstreamEnd": "2017-07-11", "extendedEnd": "2022-07-12" },
+    { "major": 12, "minor": 0,  "name": "SQL Server 2014",    "mainstreamEnd": "2019-07-09", "extendedEnd": "2024-07-09" },
+    { "major": 13, "minor": 0,  "name": "SQL Server 2016",    "mainstreamEnd": "2021-07-13", "extendedEnd": "2026-07-14" },
+    { "major": 14, "minor": 0,  "name": "SQL Server 2017",    "mainstreamEnd": "2022-10-11", "extendedEnd": "2027-10-12" },
+    { "major": 15, "minor": 0,  "name": "SQL Server 2019",    "mainstreamEnd": "2025-02-28", "extendedEnd": "2030-01-08" },
+    { "major": 16, "minor": 0,  "name": "SQL Server 2022",    "mainstreamEnd": "2028-01-11", "extendedEnd": "2033-01-11" },
+    { "major": 17, "minor": 0,  "name": "SQL Server 2025",    "mainstreamEnd": null,         "extendedEnd": null }
+  ]
+}
