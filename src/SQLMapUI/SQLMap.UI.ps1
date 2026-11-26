@@ -581,7 +581,7 @@ function Get-UiValue {
 
 function New-UiTables {
     $inst = New-Object System.Data.DataTable 'Instances'
-    foreach ($c in 'Instance', 'Type', 'Product', 'Build', 'Level', 'Latest update', 'Edition', 'State', 'Port', 'Support', 'Account risk', 'Components', 'Confidence', 'Host') {
+    foreach ($c in 'Instance', 'Type', 'Product', 'Build', 'Level', 'Latest update', 'Edition', 'State', 'Port', 'Support', 'Components', 'Confidence', 'Host') {
         [void]$inst.Columns.Add($c, [string])
     }
     [void]$inst.Columns.Add('Idx', [int])
@@ -666,8 +666,6 @@ function Add-UiInstance {
     $row['State']      = $(if ($i.IsRunning -eq $true) { 'Running' } elseif ($i.IsRunning -eq $false) { 'Stopped' } else { 'Unknown' })
     $row['Port']       = ConvertTo-UiDbValue $(if ($i.TcpPort) { "$($i.TcpPort)" + $(if ($i.DynamicPort) { ' (dyn)' } else { '' }) } else { $null })
     $row['Support']    = ConvertTo-UiDbValue $i.SupportStatus
-    $risk = Get-UiValue $i 'AccountRisk'
-    $row['Account risk'] = ConvertTo-UiDbValue $(if ($risk -and (Get-UiValue $i 'AccountRiskSummary')) { "$risk ($(Get-UiValue $i 'AccountRiskSummary'))" } else { $risk })
     $row['Components'] = ConvertTo-UiDbValue ((@($i.Components) | Where-Object { $_ }) -join ', ')
     $row['Confidence'] = ConvertTo-UiDbValue $i.Confidence
     $row['Host']       = $i.ComputerName
@@ -769,7 +767,7 @@ function Set-UiGridColors {
         $v = [string]$e.Value
         $c = $null
         switch ($name) {
-            { $_ -in 'Risk', 'Account risk' } {
+            'Risk' {
                 if ($v -like 'Critical*') { $c = $script:UiColors.Critical }
                 elseif ($v -like 'High*') { $c = $script:UiColors.Critical }
                 elseif ($v -like 'Medium*') { $c = $script:UiColors.Warning }
@@ -965,7 +963,7 @@ function Save-UiSettings {
             File = $u.TxtFile.Text; UseFile = $u.ChkFile.Checked
             UseAd = $u.ChkAd.Checked; Domain = $u.TxtDomain.Text; NameFilter = $u.TxtNameFilter.Text; SearchBase = $u.TxtSearchBase.Text
             ActiveWithinDays = [int]$u.NumDays.Value; IncludeWorkstations = $u.ChkWorkstations.Checked
-            UseSpn = $u.ChkSpn.Checked
+            AdComputers = $u.ChkAdComputers.Checked; UseSpn = $u.ChkSpn.Checked
             IpRanges = $u.TxtIp.Text; UseIp = $u.ChkIp.Checked
             UseBroadcast = $u.ChkBroadcast.Checked
             Probes = @($u.ProbeBoxes.Keys | Where-Object { $u.ProbeBoxes[$_].Checked })
@@ -994,12 +992,23 @@ function Restore-UiSettings {
         $s = Get-Content -Path $script:UiSettingsPath -Raw | ConvertFrom-Json
         $u.TxtNames.Text = [string]$s.Names; $u.ChkNames.Checked = [bool]$s.UseNames
         $u.TxtFile.Text = [string]$s.File; $u.ChkFile.Checked = [bool]$s.UseFile
-        $u.ChkAd.Checked = [bool]$s.UseAd; $u.TxtDomain.Text = [string]$s.Domain
+        # Active Directory: one source with computer accounts and SPNs. Settings saved before they were combined
+        # had two separate sources (UseAd = computers, UseSpn = SPNs).
+        if ($null -ne $s.AdComputers) {
+            $u.ChkAd.Checked = [bool]$s.UseAd
+            $u.ChkAdComputers.Checked = [bool]$s.AdComputers
+            $u.ChkSpn.Checked = [bool]$s.UseSpn
+        }
+        elseif ($s.UseAd -or $s.UseSpn) {
+            $u.ChkAd.Checked = $true
+            $u.ChkAdComputers.Checked = [bool]$s.UseAd
+            $u.ChkSpn.Checked = [bool]$s.UseSpn
+        }
+        $u.TxtDomain.Text = [string]$s.Domain
         if ($s.NameFilter) { $u.TxtNameFilter.Text = [string]$s.NameFilter }
         $u.TxtSearchBase.Text = [string]$s.SearchBase
         if ($s.ActiveWithinDays) { $u.NumDays.Value = [Math]::Min($u.NumDays.Maximum, [Math]::Max($u.NumDays.Minimum, [int]$s.ActiveWithinDays)) }
         $u.ChkWorkstations.Checked = [bool]$s.IncludeWorkstations
-        $u.ChkSpn.Checked = [bool]$s.UseSpn
         $u.TxtIp.Text = [string]$s.IpRanges; $u.ChkIp.Checked = [bool]$s.UseIp
         $u.ChkBroadcast.Checked = [bool]$s.UseBroadcast
         # Settings saved before version 2 keep the old defaults (SQL connection off, open report on): apply the new
@@ -1046,17 +1055,20 @@ function Get-UiScanParameters {
         if (-not $f -or -not (Test-Path -LiteralPath $f)) { throw "Server list file not found: '$f'" }
         $p.InputFile = $f
     }
-    if ($u.ChkAd.Checked -or $u.ChkSpn.Checked) {
+    if ($u.ChkAd.Checked) {
+        if (-not $u.ChkAdComputers.Checked -and -not $u.ChkSpn.Checked) {
+            throw 'Active Directory is checked: select computer accounts, SQL Server SPNs or both.'
+        }
         if ($u.TxtDomain.Text.Trim()) { $p.Domain = $u.TxtDomain.Text.Trim() }
         if ($u.TxtSearchBase.Text.Trim()) { $p.SearchBase = $u.TxtSearchBase.Text.Trim() }
+        if ($u.ChkAdComputers.Checked) {
+            $p.ActiveDirectory = $true
+            $p.NameFilter = $(if ($u.TxtNameFilter.Text.Trim()) { $u.TxtNameFilter.Text.Trim() } else { '*' })
+            $p.ActiveWithinDays = [int]$u.NumDays.Value
+            if ($u.ChkWorkstations.Checked) { $p.IncludeWorkstations = $true }
+        }
+        if ($u.ChkSpn.Checked) { $p.SPN = $true }
     }
-    if ($u.ChkAd.Checked) {
-        $p.ActiveDirectory = $true
-        $p.NameFilter = $(if ($u.TxtNameFilter.Text.Trim()) { $u.TxtNameFilter.Text.Trim() } else { '*' })
-        $p.ActiveWithinDays = [int]$u.NumDays.Value
-        if ($u.ChkWorkstations.Checked) { $p.IncludeWorkstations = $true }
-    }
-    if ($u.ChkSpn.Checked) { $p.SPN = $true }
     if ($u.ChkIp.Checked) {
         $ranges = @($u.TxtIp.Text -split '[,;\s]+' | Where-Object { $_ })
         if (-not $ranges) { throw 'IP ranges is checked but no range was entered.' }
@@ -1377,26 +1389,30 @@ function New-SQLMapMainForm {
     $t.Controls.Add($fileRow)
     $u.FileRow = $fileRow
 
-    $u.ChkAd = New-UiCheckBox 'Active Directory computers' -Bold
+    # One Active Directory source with two parts (both on by default): computer accounts and SQL Server SPNs.
+    # The domain and OU apply to both; name filter, logon age and workstations to computer accounts only.
+    $u.ChkAd = New-UiCheckBox 'Active Directory' -Bold
     $t.Controls.Add($u.ChkAd)
-    $t.Controls.Add((New-UiLabel 'Enabled computer accounts. No RSAT needed.' -Muted))
+    $t.Controls.Add((New-UiLabel 'SQL Server hosts from AD: computer accounts and SQL Server SPNs. No RSAT needed.' -Muted))
     $u.AdGrid = New-UiGrid2
+    $u.ChkAdComputers = New-UiCheckBox 'Computer accounts (enabled servers)' $true
+    $u.ChkSpn = New-UiCheckBox 'SQL Server SPNs (MSSQLSvc)' $true
+    $spnNote = New-UiLabel 'Also finds named instances, their ports and service accounts, readable by any domain user.' -Muted
+    $spnNote.MaximumSize = New-Object System.Drawing.Size(340, 0)
+    $spnNote.Margin = New-Object System.Windows.Forms.Padding(21, 0, 3, 6)
+    foreach ($c in $u.ChkAdComputers, $u.ChkSpn, $spnNote) { $u.AdGrid.Controls.Add($c); $u.AdGrid.SetColumnSpan($c, 2) }
     $u.TxtDomain = New-UiTextBox
     $u.TxtNameFilter = New-UiTextBox '*'
     $u.TxtSearchBase = New-UiTextBox
     $u.NumDays = New-UiNumeric 0 3650 90
     $u.ChkWorkstations = New-UiCheckBox 'Include workstations (default: servers only)'
     Add-UiRow $u.AdGrid 'Domain (empty = current)' $u.TxtDomain
-    Add-UiRow $u.AdGrid 'Name filter' $u.TxtNameFilter
     Add-UiRow $u.AdGrid 'OU (distinguished name)' $u.TxtSearchBase
+    Add-UiRow $u.AdGrid 'Name filter (computers)' $u.TxtNameFilter
     Add-UiRow $u.AdGrid 'Logged on within (days, 0 = any)' $u.NumDays
     $u.AdGrid.Controls.Add($u.ChkWorkstations)
     $u.AdGrid.SetColumnSpan($u.ChkWorkstations, 2)
     $t.Controls.Add($u.AdGrid)
-
-    $u.ChkSpn = New-UiCheckBox 'Active Directory SPNs (MSSQLSvc)' -Bold
-    $t.Controls.Add($u.ChkSpn)
-    $t.Controls.Add((New-UiLabel 'Every host with a registered SQL Server SPN. Uses the domain/OU above.' -Muted))
 
     $u.ChkIp = New-UiCheckBox 'IP ranges' -Bold
     $t.Controls.Add($u.ChkIp)
@@ -1612,7 +1628,7 @@ function New-SQLMapMainForm {
         $x = $script:ui
         $x.TxtNames.Visible = $x.ChkNames.Checked
         $x.FileRow.Visible = $x.ChkFile.Checked
-        $x.AdGrid.Visible = $x.ChkAd.Checked -or $x.ChkSpn.Checked
+        $x.AdGrid.Visible = $x.ChkAd.Checked
         $x.TxtIp.Visible = $x.ChkIp.Checked
         $x.BtnWinCred.Enabled = $x.RadWinOther.Checked
         $x.BtnSqlCred.Enabled = $x.RadSqlLogin.Checked
