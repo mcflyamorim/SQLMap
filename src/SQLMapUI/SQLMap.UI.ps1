@@ -748,10 +748,12 @@ function Update-UiSummary {
     $oos = @($u.Tables.Instances.Select("Type = 'Engine' AND Support = 'Out of support'")).Count
     $behind = @($u.Tables.Instances.Select("Type = 'Engine' AND [Latest update] LIKE '%behind%'")).Count
     $denied = @($u.Tables.Hosts.Select("Status = 'Inconclusive' AND Detail LIKE 'Access denied%'")).Count
-    $deniedText = if ($denied) { " ($denied access denied: use a local administrator account)" } else { '' }
+    $deniedText = if ($denied) { " ($denied access denied)" } else { '' }
     $acctRisk = @($u.Tables.Accounts.Select("Risk IN ('Critical','High')")).Count
     $acctText = if ($u.Tables.Accounts.Rows.Count) { "    Accounts at risk: $acctRisk" } else { '' }
     $u.LblSummary.Text = "Hosts: $hosts    With SQL Server: $withSql    Instances: $instances    Out of support: $oos    Behind latest update: $behind$acctText    Not verified: $notVerified$deniedText"
+    $tip = $u.LblSummary.Text + $(if ($denied) { "`r`nAccess denied: run the scan with an account that is local administrator on the targets (Credentials tab)." } else { '' })
+    if ($u.SummaryTip) { $u.SummaryTip.SetToolTip($u.LblSummary, $tip) }
     $u.TabAccounts.Text = "Service accounts ($($u.Tables.Accounts.Rows.Count))"
     $u.TabInstances.Text = "Instances ($instances)"
     $u.TabHosts.Text = "Hosts ($hosts)"
@@ -1372,13 +1374,13 @@ function New-SQLMapMainForm {
     $t = New-UiStack
     $u.ChkNames = New-UiCheckBox 'Computer names' $true -Bold
     $t.Controls.Add($u.ChkNames)
-    $t.Controls.Add((New-UiLabel 'One per line. srv, srv\instance and srv,port are accepted. Empty = this computer.' -Muted))
-    $u.TxtNames = New-UiTextBox -Multiline -Lines 4
+    $t.Controls.Add((New-UiLabel 'One per line: srv, srv\instance or srv,port. Empty = this computer.' -Muted))
+    $u.TxtNames = New-UiTextBox -Multiline -Lines 3
     $t.Controls.Add($u.TxtNames)
 
     $u.ChkFile = New-UiCheckBox 'Server list file' -Bold
     $t.Controls.Add($u.ChkFile)
-    $t.Controls.Add((New-UiLabel '.txt (one per line) or .csv with a ComputerName / Name / Server / Host column.' -Muted))
+    $t.Controls.Add((New-UiLabel '.txt (one per line), or .csv with a ComputerName column.' -Muted))
     $fileRow = New-Object System.Windows.Forms.TableLayoutPanel
     $fileRow.ColumnCount = 2; $fileRow.Dock = 'Fill'; $fileRow.AutoSize = $true
     [void]$fileRow.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100)))
@@ -1393,11 +1395,11 @@ function New-SQLMapMainForm {
     # The domain and OU apply to both; name filter, logon age and workstations to computer accounts only.
     $u.ChkAd = New-UiCheckBox 'Active Directory' -Bold
     $t.Controls.Add($u.ChkAd)
-    $t.Controls.Add((New-UiLabel 'SQL Server hosts from AD: computer accounts and SQL Server SPNs. No RSAT needed.' -Muted))
+    $t.Controls.Add((New-UiLabel 'Computer accounts and SQL Server SPNs. No RSAT needed.' -Muted))
     $u.AdGrid = New-UiGrid2
     $u.ChkAdComputers = New-UiCheckBox 'Computer accounts (enabled servers)' $true
     $u.ChkSpn = New-UiCheckBox 'SQL Server SPNs (MSSQLSvc)' $true
-    $spnNote = New-UiLabel 'Also finds named instances, their ports and service accounts, readable by any domain user.' -Muted
+    $spnNote = New-UiLabel 'Named instances, ports and service accounts.' -Muted
     $spnNote.MaximumSize = New-Object System.Drawing.Size(340, 0)
     $spnNote.Margin = New-Object System.Windows.Forms.Padding(21, 0, 3, 6)
     foreach ($c in $u.ChkAdComputers, $u.ChkSpn, $spnNote) { $u.AdGrid.Controls.Add($c); $u.AdGrid.SetColumnSpan($c, 2) }
@@ -1417,8 +1419,10 @@ function New-SQLMapMainForm {
     $u.ChkIp = New-UiCheckBox 'IP ranges' -Bold
     $t.Controls.Add($u.ChkIp)
     $t.Controls.Add((New-UiLabel '10.0.0.0/24, 10.0.0.1-10.0.0.50, 10.0.0.1-50 or single IPs; one per line.' -Muted))
-    $u.TxtIp = New-UiTextBox -Multiline -Lines 3
+    $u.TxtIp = New-UiTextBox -Multiline -Lines 2
     $t.Controls.Add($u.TxtIp)
+    # Notes sit right under their check box: with every source open the tab fits without a scroll bar
+    foreach ($c in $t.Controls) { if ($c -is [System.Windows.Forms.Label] -and $c.Tag -eq 'muted') { $c.Margin = New-Object System.Windows.Forms.Padding(3, 0, 3, 3) } }
 
     $u.ChkBroadcast = New-UiCheckBox 'SQL Browser broadcast (local subnet)' -Bold
     $t.Controls.Add($u.ChkBroadcast)
@@ -1573,7 +1577,14 @@ function New-SQLMapMainForm {
     $u.MarqueeTimer.Interval = 30
     $u.MarqueeTimer.Add_Tick({ $script:ui.Progress.Pos += 1.5; Update-UiProgress })
 
+    # Fixed to the panel width (an auto-sized label with a long summary pushed the panel past the window edge and
+    # cut off the progress text); long text ends with '...' and the full text is in the tooltip
     $u.LblSummary = New-UiLabel '' -Muted
+    $u.LblSummary.AutoSize = $false
+    $u.LblSummary.AutoEllipsis = $true
+    $u.LblSummary.Dock = 'Fill'
+    $u.LblSummary.Height = $u.LblSummary.Font.Height + 10
+    $u.SummaryTip = New-Object System.Windows.Forms.ToolTip
     $right.Controls.Add($u.LblSummary, 0, 2)
 
     $results = New-UiTabSet @('Instances', 'Hosts', 'Service accounts', 'Log')
