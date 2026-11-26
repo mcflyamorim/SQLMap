@@ -286,14 +286,58 @@ function Merge-SQLMapHostResult {
         $keep.Sources = @(@($g | ForEach-Object { $_.Sources }) | Select-Object -Unique)
         $aliases = @($others | ForEach-Object { $_.ComputerName } | Where-Object { $_ -ne $keep.ComputerName } | Select-Object -Unique)
         if ($aliases) {
-            $keep.Log = @($keep.Log) + [pscustomobject]@{
-                Time = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss.fff'); Level = 'Info'; ComputerName = $keep.ComputerName
-                Message = "Also targeted as: $($aliases -join ', ') (same address, merged)"
-            }
+            Add-SQLMapHostAlias -HostResult $keep -Alias $aliases -Reason 'same address'
         }
         $out.Add($keep)
     }
-    $out.ToArray()
+
+    # Second pass: the same machine under names with different addresses (DNS alias with its own IP, second NIC):
+    # same real computer name and the same MachineGuid or machine SID
+    $list = $out.ToArray()
+    $groupOf = @{}; $byKey = @{}
+    for ($k = 0; $k -lt $list.Count; $k++) {
+        $keys = @(Get-SQLMapHostIdentityKey $list[$k])
+        $gid = $k
+        foreach ($key in $keys) { if ($byKey.ContainsKey($key)) { $gid = $byKey[$key]; break } }
+        $groupOf[$k] = $gid
+        foreach ($key in $keys) { if (-not $byKey.ContainsKey($key)) { $byKey[$key] = $gid } }
+    }
+    $result = New-Object System.Collections.Generic.List[object]
+    foreach ($grp in (0..($list.Count - 1) | Where-Object { $list.Count } | Group-Object { $groupOf[$_] })) {
+        $members = @($grp.Group | ForEach-Object { $list[[int]$_] })
+        if ($members.Count -eq 1) { $result.Add($members[0]); continue }
+        # Keep the entry named after the machine itself (real name from the identity), then the one with the most found
+        $realName = @($members | ForEach-Object { @(Get-SQLMapHostIdentityKey $_) } | Select-Object -First 1)[0] -split '\|' | Select-Object -Index 1
+        $keep = $members | Sort-Object @{ e = { if ($realName -and [string]$_.ComputerName -ieq $realName) { 0 } else { 1 } } },
+                                       @{ e = { - $_.InstanceCount } },
+                                       @{ e = { if ([string]$_.ComputerName -match '^\d{1,3}(\.\d{1,3}){3}$') { 1 } else { 0 } } } | Select-Object -First 1
+        $others = @($members | Where-Object { $_ -ne $keep })
+        $keep.Sources = @(@($members | ForEach-Object { $_.Sources }) | Select-Object -Unique)
+        $keep.SPNs = @(@($members | ForEach-Object { $_.SPNs }) | Where-Object { $_ } | Select-Object -Unique)
+        $how = if (@($others | Where-Object { $_.MachineGuid -and $_.MachineGuid -eq $keep.MachineGuid }).Count) { 'same MachineGuid' } else { 'same machine SID' }
+        Add-SQLMapHostAlias -HostResult $keep -Alias @($others | ForEach-Object { if ($_.IPAddress) { "$($_.ComputerName) ($($_.IPAddress))" } else { $_.ComputerName } }) `
+            -Reason "same machine: real name $realName, $how"
+        if ($realName -and -not $keep.ActualComputerName) {
+            # Hosts of scans saved before this field existed do not have it
+            if ($keep.PSObject.Properties['ActualComputerName']) { $keep.ActualComputerName = $realName }
+            else { $keep | Add-Member -NotePropertyName ActualComputerName -NotePropertyValue $realName }
+        }
+        $result.Add($keep)
+    }
+    $result.ToArray()
+}
+
+function Add-SQLMapHostAlias {
+    # Records other names / addresses merged into this host (Aliases + a log line)
+    param($HostResult, [string[]]$Alias, [string]$Reason)
+    $h = $HostResult
+    $existing = if ($h.PSObject.Properties['Aliases']) { @($h.Aliases) } else { @() }
+    $all = @(@($existing) + @($Alias) | Where-Object { $_ } | Select-Object -Unique)
+    if ($h.PSObject.Properties['Aliases']) { $h.Aliases = $all } else { $h | Add-Member -NotePropertyName Aliases -NotePropertyValue $all }
+    $h.Log = @($h.Log) + [pscustomobject]@{
+        Time = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss.fff'); Level = 'Info'; ComputerName = $h.ComputerName
+        Message = "Also reached as: $($Alias -join ', ') ($Reason; merged into one host)"
+    }
 }
 
 function Get-SQLMapSummary {

@@ -206,7 +206,7 @@ function Get-SQLMapCimHostInfo {
     if ($CimSession) { $p.CimSession = $CimSession }
     $info = [ordered]@{
         OSCaption = $null; OSVersion = $null; OSArchitecture = $null; LastBootTime = $null
-        Domain = $null; Manufacturer = $null; Model = $null; IsVirtual = $null
+        ComputerName = $null; Domain = $null; Manufacturer = $null; Model = $null; IsVirtual = $null
         Sockets = $null; Cores = $null; LogicalProcessors = $null; MemoryGB = $null
     }
     try {
@@ -217,7 +217,8 @@ function Get-SQLMapCimHostInfo {
         $info.LastBootTime   = ConvertTo-SQLMapIsoDate $os.LastBootUpTime
     } catch { Add-SQLMapLog $Context "Win32_OperatingSystem failed: $(Get-SQLMapErrorMessage $_)" -Level Warning }
     try {
-        $cs = Get-CimInstance @p -ClassName Win32_ComputerSystem -Property Domain, Manufacturer, Model, NumberOfLogicalProcessors, TotalPhysicalMemory
+        $cs = Get-CimInstance @p -ClassName Win32_ComputerSystem -Property Name, Domain, Manufacturer, Model, NumberOfLogicalProcessors, TotalPhysicalMemory
+        $info.ComputerName      = $cs.Name   # the machine's real name, whatever name was used to reach it
         $info.Domain            = $cs.Domain
         $info.Manufacturer      = $cs.Manufacturer
         $info.Model             = $cs.Model

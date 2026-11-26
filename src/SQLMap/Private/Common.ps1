@@ -179,6 +179,41 @@ function Get-SQLMapProductInfo {
     return $info
 }
 
+function Get-SQLMapMachineSid {
+    # The machine SID: the SID of one of its local accounts ('HOST\Administrator') without the RID.
+    # Unique per Windows installation (unless cloned without sysprep).
+    param([object[]]$LocalAdmins, [string]$ComputerName)
+    if (-not $ComputerName) { return $null }
+    foreach ($m in @($LocalAdmins)) {
+        if (-not $m -or -not $m.SID) { continue }
+        $parts = ([string]$m.Name) -split '\\'
+        $sm = [regex]::Match([string]$m.SID, '^(S-1-5-21-\d+-\d+-\d+)-\d+$')
+        if ($parts.Count -eq 2 -and $parts[0] -ieq $ComputerName -and $sm.Success) { return $sm.Groups[1].Value }
+    }
+    $null
+}
+
+function Get-SQLMapHostIdentityKey {
+    # Keys that identify a machine whatever name or address reached it: its real computer name plus its
+    # MachineGuid or machine SID. Requiring the name keeps VM clones made without sysprep (same GUID and SID,
+    # different names) apart. Works with scans saved before these fields existed (SQL server name, local admins).
+    param($HostResult)
+    $h = $HostResult
+    $name = [string]$h.ActualComputerName
+    if (-not $name) {
+        $name = @(@($h.Instances) | Where-Object { $_ -and $_.ServiceType -eq 'Engine' -and $_.ServerName -and -not $_.Clustered } |
+                  ForEach-Object { ([string]$_.ServerName -split '\\')[0] }) | Select-Object -First 1
+    }
+    if (-not $name) { return @() }
+    $name = $name.ToUpperInvariant()
+    $sid = [string]$h.MachineSid
+    if (-not $sid) { $sid = Get-SQLMapMachineSid -LocalAdmins $h.LocalAdmins -ComputerName $name }
+    $keys = @()
+    if ($h.MachineGuid) { $keys += "guid|$name|$(([string]$h.MachineGuid).ToLowerInvariant())" }
+    if ($sid) { $keys += "sid|$name|$sid" }
+    $keys
+}
+
 function Get-SQLMapInstanceTypeText {
     # Per-type breakdown of a host's instances: 'Engine 1, SSRS 1' (empty when there are none)
     param([object[]]$Instances)

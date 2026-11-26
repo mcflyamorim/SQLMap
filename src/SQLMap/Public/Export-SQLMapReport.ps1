@@ -159,6 +159,9 @@ function Export-SQLMapReport {
                     ServiceMessage    = & $getProp $pm 'Service'
                     SPNs              = Join-SQLMapList $h.SPNs
                     LocalAdmins       = $(if ($h.PSObject.Properties['LocalAdmins'] -and $null -ne $h.LocalAdmins) { Join-SQLMapList @($h.LocalAdmins | ForEach-Object { $_.Name }) } else { $null })
+                    ActualComputerName = & $getProp $h 'ActualComputerName'
+                    Aliases           = Join-SQLMapList (& $getProp $h 'Aliases')
+                    MachineGuid       = & $getProp $h 'MachineGuid'
                     DurationMs        = $h.DurationMs
                 }
             } | Export-Csv -LiteralPath $file -NoTypeInformation -Encoding UTF8

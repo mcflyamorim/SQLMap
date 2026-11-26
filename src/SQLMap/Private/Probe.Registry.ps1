@@ -220,7 +220,7 @@ function Invoke-SQLMapRegistryProbe {
         $CimSession,
         [bool]$CimAvailable
     )
-    $result = [ordered]@{ Status = 'Skipped'; Method = $null; Instances = @(); Message = $null }
+    $result = [ordered]@{ Status = 'Skipped'; Method = $null; Instances = @(); Message = $null; MachineGuid = $null; ComputerName = $null }
 
     $order = @()
     if ($IsLocal) { $order = @('DotNet') }
@@ -238,6 +238,12 @@ function Invoke-SQLMapRegistryProbe {
         try {
             $reader = Open-SQLMapRegistryReader -Kind $kind -ComputerName $ComputerName -IsLocal $IsLocal -CimSession $CimSession
             $result.Instances = @(Get-SQLMapRegistryInstance -Reader $reader -ComputerName $ComputerName)
+            # Machine identity: tells when two names (DNS aliases, extra IPs) are the same machine
+            try {
+                $result.MachineGuid = [string](Get-SQLMapRegValue $reader 'SOFTWARE\Microsoft\Cryptography' 'MachineGuid')
+                $result.ComputerName = [string](Get-SQLMapRegValue $reader 'SYSTEM\CurrentControlSet\Control\ComputerName\ActiveComputerName' 'ComputerName')
+            }
+            catch { }
             $result.Method = if ($kind -eq 'Cim') { 'WMI StdRegProv' } else { if ($IsLocal) { 'Local registry' } else { 'Remote Registry' } }
             $result.Status = 'OK'
             Add-SQLMapLog $Context "Registry ($($result.Method)): $($result.Instances.Count) instance(s) registered"

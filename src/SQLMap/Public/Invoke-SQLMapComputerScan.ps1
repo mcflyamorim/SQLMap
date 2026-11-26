@@ -60,6 +60,11 @@ function Invoke-SQLMapComputerScan {
             HostInfo          = $null
             Services          = @()
             LocalAdmins       = $null   # members of the local Administrators group; $null = not read
+            # Machine identity (two names of the same machine are merged after the scan)
+            ActualComputerName = $null  # the machine's own name (registry, WMI or SQL Server)
+            MachineGuid       = $null   # HKLM\SOFTWARE\Microsoft\Cryptography\MachineGuid
+            MachineSid        = $null   # domain part of the SIDs of its local accounts
+            Aliases           = @()     # other names / addresses that reached the same machine
             SPNs              = @($Target.SPNs)
             Instances         = @()
             InstanceCount     = 0
@@ -152,6 +157,8 @@ function Invoke-SQLMapComputerScan {
                 if ($reg.Message) { $h.ProbeMessages.Registry = $reg.Message }
                 if ($reg.Method) { $h.ProbeMessages.RegistryMethod = $reg.Method }
                 $regInstances = @($reg.Instances)
+                if ($reg.MachineGuid) { $h.MachineGuid = $reg.MachineGuid }
+                if ($reg.ComputerName) { $h.ActualComputerName = $reg.ComputerName.ToUpperInvariant() }
             }
 
             # --- Services + host info -------------------------------------------------------
@@ -289,6 +296,17 @@ function Invoke-SQLMapComputerScan {
                 $h.Probes.SqlConnect = if (-not $results) { 'NoTarget' }
                                        elseif ($results -contains 'OK') { if (@($results | Where-Object { $_ -ne 'OK' }).Count) { 'Partial' } else { 'OK' } }
                                        else { $results[0] }
+            }
+
+            # Machine identity: real name from the registry, else WMI, else a non-clustered SQL Server instance
+            if (-not $h.ActualComputerName -and $h.HostInfo -and $h.HostInfo.ComputerName) { $h.ActualComputerName = ([string]$h.HostInfo.ComputerName).ToUpperInvariant() }
+            if (-not $h.ActualComputerName) {
+                $sqlName = @($instances | Where-Object { $_.ServiceType -eq 'Engine' -and $_.ServerName -and -not $_.Clustered } | ForEach-Object { ([string]$_.ServerName -split '\\')[0] }) | Select-Object -First 1
+                if ($sqlName) { $h.ActualComputerName = $sqlName.ToUpperInvariant() }
+            }
+            $h.MachineSid = Get-SQLMapMachineSid -LocalAdmins $h.LocalAdmins -ComputerName $h.ActualComputerName
+            if ($h.ActualComputerName -and $h.ActualComputerName -ne ([string]$h.ComputerName).ToUpperInvariant() -and -not $isLocal) {
+                Add-SQLMapLog $ctx "This machine's own name is $($h.ActualComputerName) (reached as $($h.ComputerName))"
             }
 
             $asOf = Get-Date
