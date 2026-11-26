@@ -463,7 +463,9 @@ function Read-UiCredential {
     $f.Padding = New-Object System.Windows.Forms.Padding(10)
 
     $stack = New-UiStack
-    if ($Hint) { $stack.Controls.Add((New-UiLabel $Hint -Muted)) }
+    $stack.Dock = 'None'   # docked, the stack and the auto-sized form would size each other down to nothing
+    $stack.Location = New-Object System.Drawing.Point(10, 10)
+    if ($Hint) { $h = New-UiLabel $Hint -Muted; $h.MaximumSize = New-Object System.Drawing.Size(380, 0); $stack.Controls.Add($h) }
     $grid = New-UiGrid2
     $grid.Margin = New-Object System.Windows.Forms.Padding(0)
     $user = New-UiTextBox $UserName
@@ -748,6 +750,153 @@ function Set-UiGridColors {
 
 #endregion
 
+#region Build reference update ---------------------------------------------------------------
+# At startup, when the build reference is older than its freshness window (MaxAgeDays, 30) and the online check is
+# on, a background test sees whether Microsoft Learn is reachable; only then the user is asked. Nothing is
+# downloaded without a click. 'Not now' waits 7 days; 'Don't ask again' turns the check off (Options tab).
+
+function Start-UiBackgroundTask {
+    # Runs $Script in its own runspace (module loaded); $OnDone gets (result, errorText) on the UI thread
+    param([string]$Name, [scriptblock]$Script, [scriptblock]$OnDone)
+    $u = $script:ui
+    $iss = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+    $iss.ImportPSModule([string[]]@($u.ModulePath))
+    $rs = [runspacefactory]::CreateRunspace($iss)
+    $rs.Open()
+    $ps = [powershell]::Create()
+    $ps.Runspace = $rs
+    [void]$ps.AddScript($Script.ToString())
+    $u.BgTasks.Add(@{ Name = $Name; PS = $ps; Runspace = $rs; Handle = $ps.BeginInvoke(); OnDone = $OnDone })
+    if (-not $u.BgTimer.Enabled) { $u.BgTimer.Start() }
+}
+
+function Invoke-UiBackgroundTick {
+    $u = $script:ui
+    foreach ($t in @($u.BgTasks.ToArray())) {
+        if (-not $t.Handle.IsCompleted) { continue }
+        $result = $null; $err = $null
+        try {
+            $result = $t.PS.EndInvoke($t.Handle) | Select-Object -Last 1
+            if ($t.PS.Streams.Error.Count) { $err = [string]$t.PS.Streams.Error[0] }
+        }
+        catch { $err = $_.Exception.InnerException.Message; if (-not $err) { $err = $_.Exception.Message } }
+        finally { $t.PS.Dispose(); $t.Runspace.Dispose(); [void]$u.BgTasks.Remove($t) }
+        Invoke-UiSafe { & $t.OnDone $result $err }
+    }
+    if ($u.BgTasks.Count -eq 0) { $u.BgTimer.Stop() }
+}
+
+function Get-UiBuildRefInfo {
+    # The reference as this window's module sees it, plus its age in days (null when there is no file)
+    $ref = & (Get-Module SQLMap) { Get-SQLMapBuildReference }
+    $age = if ($ref.Available -and $ref.RetrievedUtc) { [int][Math]::Floor(((Get-Date).ToUniversalTime() - $ref.RetrievedUtc.ToUniversalTime()).TotalDays) } else { $null }
+    @{ Ref = $ref; AgeDays = $age }
+}
+
+function Update-UiBuildRefLabel {
+    $u = $script:ui
+    $info = Get-UiBuildRefInfo
+    $u.LblBuildRef.Text = if (-not $info.Ref.Available) { 'No build reference file: patch levels are not shown.' }
+        else {
+            $old = if ($info.AgeDays -gt $info.Ref.MaxAgeDays) { ' - out of date' } else { '' }
+            "Retrieved $($info.Ref.LastUpdated) ($($info.AgeDays) day(s) old$old) from Microsoft Learn."
+        }
+}
+
+function Start-UiBuildRefCheck {
+    # Startup: ask about updating only when the file is stale, the check is on, not snoozed, and the site answers
+    $u = $script:ui
+    if (-not $u.ChkBuildRefOnline.Checked -or $u.BuildRefUpdating) { return }
+    $info = Get-UiBuildRefInfo
+    if ($info.Ref.Available -and $info.AgeDays -le $info.Ref.MaxAgeDays) { return }
+    $snooze = [datetime]::MinValue
+    if ($u.BuildRefSnoozeUntil -and [datetime]::TryParse([string]$u.BuildRefSnoozeUntil, [ref]$snooze) -and (Get-Date) -lt $snooze) { return }
+    Start-UiBackgroundTask -Name 'BuildRefCheck' -Script {
+        try { [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12 } catch { }
+        $ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0'
+        try { $null = Invoke-WebRequest -Uri 'https://learn.microsoft.com/' -Method Head -UseBasicParsing -TimeoutSec 4 -UserAgent $ua -ErrorAction Stop; $true }
+        catch { [bool]$_.Exception.Response }   # any HTTP answer (even 403) means the site is reachable
+    } -OnDone {
+        param($reachable, $err)
+        if ($reachable -eq $true -and -not $script:ui.Job) { Show-UiBuildRefPrompt }
+    }
+}
+
+function Show-UiBuildRefPrompt {
+    $u = $script:ui
+    $info = Get-UiBuildRefInfo
+    $msg = if ($info.Ref.Available) {
+        "The SQL Server build reference is $($info.AgeDays) days old (retrieved $($info.Ref.LastUpdated)). Patch levels " +
+        "in new reports may miss the latest updates.`r`n`r`nUpdate it now from Microsoft Learn? It takes a few seconds."
+    } else { "There is no SQL Server build reference, so reports show no patch levels.`r`n`r`nDownload it now from Microsoft Learn?" }
+
+    $f = New-Object System.Windows.Forms.Form
+    $f.Text = 'SQLMap - build reference'
+    $f.Font = $script:UiFont
+    $f.FormBorderStyle = 'FixedDialog'; $f.StartPosition = 'CenterParent'
+    $f.MinimizeBox = $false; $f.MaximizeBox = $false
+    $f.AutoSize = $true; $f.AutoSizeMode = 'GrowAndShrink'
+    $f.Padding = New-Object System.Windows.Forms.Padding(12)
+    $stack = New-UiStack
+    $stack.Dock = 'None'   # docked, the stack and the auto-sized form would size each other down to nothing
+    $stack.Location = New-Object System.Drawing.Point(12, 12)
+    $lbl = New-UiLabel $msg
+    # Fixed text width: an auto-sized dialog would otherwise shrink the label to a narrow column
+    $lbl.MinimumSize = New-Object System.Drawing.Size(440, 0)
+    $lbl.MaximumSize = New-Object System.Drawing.Size(440, 0)
+    $stack.Controls.Add($lbl)
+    $dontAsk = New-UiCheckBox "Don't ask again on this computer" $false
+    $dontAsk.Margin = New-Object System.Windows.Forms.Padding(3, 12, 3, 3)
+    $stack.Controls.Add($dontAsk)
+    $buttons = New-Object System.Windows.Forms.FlowLayoutPanel
+    $buttons.FlowDirection = 'RightToLeft'; $buttons.AutoSize = $true; $buttons.Dock = 'Fill'
+    $yes = New-UiButton 'Update now' 110 -Primary
+    $no = New-UiButton 'Not now' 90
+    $yes.DialogResult = 'Yes'; $no.DialogResult = 'No'
+    $buttons.Controls.AddRange(@($no, $yes))
+    $stack.Controls.Add($buttons)
+    $f.Controls.Add($stack)
+    $f.AcceptButton = $yes; $f.CancelButton = $no
+    Initialize-UiDialog $f
+    $answer = $f.ShowDialog($u.Form)
+    $stopAsking = $dontAsk.Checked
+    $f.Dispose()
+
+    if ($stopAsking) { $u.ChkBuildRefOnline.Checked = $false }
+    if ($answer -eq 'Yes') { Start-UiBuildRefUpdate }
+    elseif (-not $stopAsking) { $u.BuildRefSnoozeUntil = (Get-Date).AddDays(7).ToString('yyyy-MM-dd') }
+    Save-UiSettings
+}
+
+function Start-UiBuildRefUpdate {
+    $u = $script:ui
+    if ($u.BuildRefUpdating) { return }
+    $u.BuildRefUpdating = $true
+    $u.BtnUpdateRef.Enabled = $false
+    $u.LblBuildRef.Text = 'Updating from Microsoft Learn...'
+    if (-not $u.Job) { $u.LblStatus.Text = 'Updating the build reference from Microsoft Learn...' }
+    Start-UiBackgroundTask -Name 'BuildRefUpdate' -Script { Update-SQLMapBuildReference -ErrorAction Stop } -OnDone {
+        param($result, $err)
+        $x = $script:ui
+        $x.BuildRefUpdating = $false
+        $x.BtnUpdateRef.Enabled = $true
+        # The file was replaced by another runspace: reload it here
+        & (Get-Module SQLMap) { $null = Get-SQLMapBuildReference -Reload }
+        Update-UiBuildRefLabel
+        if ($err -or -not $result) {
+            if (-not $x.Job) { $x.LblStatus.Text = 'Build reference not updated; the current file was kept.' }
+            Show-UiError "The build reference could not be updated (the current file was kept):`r`n`r`n$err`r`n`r`nThis computer may have no internet access, or need a proxy."
+        }
+        else {
+            $x.BuildRefSnoozeUntil = $null
+            Save-UiSettings
+            if (-not $x.Job) { $x.LblStatus.Text = "Build reference updated: retrieved $($result.NewDate), $($result.Builds) builds. New scans use it." }
+        }
+    }
+}
+
+#endregion
+
 #region Settings ---------------------------------------------------------------------------
 
 # 2: SQL connection on and "open report" off by default (older settings files get these two defaults once)
@@ -773,6 +922,8 @@ function Save-UiSettings {
             Formats = @($u.FormatBoxes.Keys | Where-Object { $u.FormatBoxes[$_].Checked })
             OpenReport = $u.ChkOpenReport.Checked
             Theme = $script:UiTheme
+            CheckBuildRefOnline = $u.ChkBuildRefOnline.Checked
+            BuildRefSnoozeUntil = $u.BuildRefSnoozeUntil
         }
         $dir = Split-Path $script:UiSettingsPath
         if (-not (Test-Path $dir)) { $null = New-Item -Path $dir -ItemType Directory -Force }
@@ -815,6 +966,9 @@ function Restore-UiSettings {
         if ($s.Formats) { foreach ($k in @($u.FormatBoxes.Keys)) { $u.FormatBoxes[$k].Checked = (@($s.Formats) -contains $k) } }
         if ($current) { $u.ChkOpenReport.Checked = [bool]$s.OpenReport }
         if ($s.Theme -in 'Dark', 'Light') { $u.Theme = [string]$s.Theme }
+        # Online check is on unless the user turned it off ("Don't ask again" or the Options tab)
+        if ($null -ne $s.CheckBuildRefOnline) { $u.ChkBuildRefOnline.Checked = [bool]$s.CheckBuildRefOnline }
+        $u.BuildRefSnoozeUntil = $(if ($s.BuildRefSnoozeUntil) { [string]$s.BuildRefSnoozeUntil } else { $null })
     }
     catch { }
 }
@@ -1101,6 +1255,8 @@ function New-SQLMapMainForm {
         HostObjects = New-Object System.Collections.Generic.List[object]
         InstanceObjects = New-Object System.Collections.Generic.List[object]
         Tables = New-UiTables
+        BgTasks = New-Object System.Collections.Generic.List[object]   # background jobs other than the scan
+        BuildRefUpdating = $false; BuildRefSnoozeUntil = $null
     }
     $u = $script:ui
     $u.StartupStep = $startupStep   # used by the Load/Shown handlers, which run after this function returns
@@ -1216,6 +1372,19 @@ function New-SQLMapMainForm {
     Add-UiRow $og 'Max time per host (s)' $u.NumHostTimeout
     $o.Controls.Add($og)
     $o.Controls.Add((New-UiLabel 'Ports 135, 445 and 5985 are always checked to skip probes that cannot work.' -Muted))
+
+    # Build reference (patch levels): status, online check at startup, update on demand
+    $o.Controls.Add((New-UiLabel 'Build reference (patch levels)' -Bold))
+    $u.LblBuildRef = New-UiLabel '' -Muted
+    $u.LblBuildRef.MaximumSize = New-Object System.Drawing.Size(380, 0)
+    $u.LblBuildRef.Margin = New-Object System.Windows.Forms.Padding(12, 3, 3, 2)
+    $o.Controls.Add($u.LblBuildRef)
+    $u.ChkBuildRefOnline = New-UiCheckBox 'At startup, check online when it is older than 30 days' $true
+    $u.ChkBuildRefOnline.Margin = New-Object System.Windows.Forms.Padding(12, 3, 3, 1)
+    $o.Controls.Add($u.ChkBuildRefOnline)
+    $u.BtnUpdateRef = New-UiButton 'Update build reference' 170
+    $u.BtnUpdateRef.Margin = New-Object System.Windows.Forms.Padding(12, 6, 3, 3)
+    $o.Controls.Add($u.BtnUpdateRef)
     $tabs.Pages[1].Controls.Add($o)
 
     # Credentials tab
@@ -1357,6 +1526,10 @@ function New-SQLMapMainForm {
     $bottomGrid.Controls.Add($u.BtnTheme, 1, 0)
     $right.Controls.Add($bottomGrid, 0, 4)
 
+    $u.BgTimer = New-Object System.Windows.Forms.Timer
+    $u.BgTimer.Interval = 250
+    $u.BgTimer.Add_Tick({ Invoke-UiBackgroundTick })
+    $u.BtnUpdateRef.Add_Click({ Invoke-UiSafe { Start-UiBuildRefUpdate } })
     $u.Timer = New-Object System.Windows.Forms.Timer
     $u.Timer.Interval = 300
 
@@ -1431,6 +1604,7 @@ function New-SQLMapMainForm {
         & $x.Toggle
         Update-UiCredentialLabels
         Update-UiSummary
+        Update-UiBuildRefLabel
         # Dark by default; the saved choice wins
         Set-UiTheme $x.Form $x.Theme
         $x.BtnTheme.Text = $(if ($script:UiTheme -eq 'Dark') { 'Light theme' } else { 'Dark theme' })
@@ -1439,7 +1613,10 @@ function New-SQLMapMainForm {
         try { $x.Split.SplitterDistance = [int](430 * $g.DpiX / 96) } finally { $g.Dispose() }
         & $x.StartupStep 'Opening the window...'
     } })
-    $form.Add_Shown({ & $script:ui.StartupStep 'SQLMap is open. Keep this console window open: closing it closes the application.' })
+    $form.Add_Shown({
+        & $script:ui.StartupStep 'SQLMap is open. Keep this console window open: closing it closes the application.'
+        Invoke-UiSafe { Start-UiBuildRefCheck }   # background; asks only when the reference is out of date
+    })
     $form.Add_FormClosing({ param($s, $e)
         $x = $script:ui
         if ($x.Job) {
@@ -1449,6 +1626,8 @@ function New-SQLMapMainForm {
             $x.Job.State.CancelRequested = $true
             try { [void]$x.Job.PS.BeginStop($null, $null) } catch { }
         }
+        $x.BgTimer.Stop()
+        foreach ($t in @($x.BgTasks.ToArray())) { try { [void]$t.PS.BeginStop($null, $null) } catch { } }
         Save-UiSettings
     })
     $form.AcceptButton = $null

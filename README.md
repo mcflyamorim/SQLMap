@@ -200,6 +200,13 @@ Update-SQLMapBuildReference -Path ..\SQLSecReview\rules\sql-update-reference.jso
 
 Importing SQLSecReview's file, which covers only 2017-2025, keeps the 2008-2016 rows already in SQLMap's file.
 
+**In the Windows UI:**
+- The Options tab shows the reference date and has an **Update build reference** button.
+- At startup, when the reference is older than 30 days, SQLMap checks in the background whether Microsoft Learn is
+  reachable. Only then does it ask whether to update. Nothing is downloaded without a click.
+- **Not now** asks again in 7 days. **Don't ask again on this computer**, or the Options checkbox, turns the startup
+  check off. Turn it off on client servers that must not reach the internet.
+
 The reference is considered current for 30 days (`MaxAgeDays`). The report shows the retrieval date, and warns when it was
 older than that at scan time. SSRS and Power BI Report Server ship on their own release track and are not compared.
 
