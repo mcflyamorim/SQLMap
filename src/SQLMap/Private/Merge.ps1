@@ -50,6 +50,7 @@ function New-SQLMapInstance {
         LinkedServers        = $null
         AvailabilityGroups   = $null
         AgentState        = $null
+        AgentStartMode    = $null   # Auto | Manual | Disabled (Windows services or sys.dm_server_services)
         IsRunning         = $null
         LastHeartbeatUtc  = $null
         Confidence        = $null
@@ -155,7 +156,7 @@ function Merge-SQLMapInstance {
         if (-not $i -and $cs.Parent -eq 'SSIS') { $i = & $get 'SSIS' $s.InstanceName; Add-SQLMapEvidence $i 'Service' }
         if (-not $i) { continue }
         Add-SQLMapComponent $i $cs.Label
-        if ($s.ServiceType -eq 'Agent') { $i.AgentState = $s.State; $i.AgentServiceAccount = $s.StartName }
+        if ($s.ServiceType -eq 'Agent') { $i.AgentState = $s.State; $i.AgentStartMode = $s.StartMode; $i.AgentServiceAccount = $s.StartName }
     }
 
     # 3. SQL Server Browser

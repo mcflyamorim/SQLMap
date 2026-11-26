@@ -215,6 +215,9 @@ came from one of the last two.
 1. Windows services (needs local admin).
 2. The SQL connection, using `sys.dm_server_services` (needs `VIEW SERVER STATE`, SQL Server 2008 R2 SP1+). This
    also gives the SQL Agent account.
+
+The same two sources give the state and start mode (Auto / Manual / Disabled) of the engine and SQL Agent services,
+so they are known even without admin rights on the host. The Windows services win when both are available.
 3. The AD account holding the instance's `MSSQLSvc` SPN, with `-SPN` (any domain user can read it). An SPN on the
    computer account means a built-in account (NT Service, LocalSystem or Network Service).
 

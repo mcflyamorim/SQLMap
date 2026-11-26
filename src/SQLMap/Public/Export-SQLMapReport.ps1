@@ -93,6 +93,7 @@ function Export-SQLMapReport {
                     LinkedServers       = Join-SQLMapList (& $optional $i 'LinkedServers') ' | '
                     AvailabilityGroups  = Join-SQLMapList (& $optional $i 'AvailabilityGroups') ' | '
                     AgentState        = $i.AgentState
+                    AgentStartMode    = & $optional $i 'AgentStartMode'
                     TcpPort           = $i.TcpPort
                     DynamicPort       = $i.DynamicPort
                     Clustered         = $i.Clustered

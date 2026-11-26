@@ -27,7 +27,7 @@ $script:SqlConnectSysInfoQuery = 'SELECT cpu_count AS CpuCount, sqlserver_start_
 # Service accounts of this instance (engine and SQL Agent), SQL Server 2008 R2 SP1 and later. Needs VIEW SERVER STATE.
 # Gives the account without Windows admin rights on the host. Database engine rows are 'SQL Server (INSTANCE)'.
 $script:SqlConnectServicesQuery = @'
-SELECT servicename, service_account FROM sys.dm_server_services
+SELECT servicename, service_account, status_desc, startup_type_desc FROM sys.dm_server_services
 WHERE servicename LIKE N'SQL Server (%' OR servicename LIKE N'SQL Server Agent (%';
 '@
 
@@ -182,6 +182,7 @@ function Invoke-SQLMapSqlConnect {
         IsClustered = $null; IsHadrEnabled = $null; Collation = $null; DatabaseCount = $null; HasSsisCatalog = $null
         DataSizeGB = $null; LogSizeGB = $null; MaxServerMemoryMB = $null; CpuCount = $null; StartTime = $null
         ServiceAccount = $null; AgentServiceAccount = $null
+        ServiceState = $null; StartMode = $null; AgentState = $null; AgentStartMode = $null
         AuthenticationMode = $null; SaLogin = $null; ScanLoginSysadmin = $null; SysadminLogins = $null
         ServiceAccountLogin = $null; AgentAccountLogin = $null; LinkedServers = $null; AvailabilityGroups = $null
     }
@@ -236,7 +237,11 @@ function Invoke-SQLMapSqlConnect {
                 while ($reader.Read()) {
                     $name = [string]$reader.GetValue(0)
                     $acct = if ($reader.IsDBNull(1)) { $null } else { [string]$reader.GetValue(1) }
-                    if ($name -like 'SQL Server Agent (*') { $r.AgentServiceAccount = $acct } else { $r.ServiceAccount = $acct }
+                    $state = if ($reader.IsDBNull(2)) { $null } else { [string]$reader.GetValue(2) }   # Running, Stopped, ...
+                    # Same values as Win32_Service.StartMode: Automatic -> Auto
+                    $start = if ($reader.IsDBNull(3)) { $null } else { ([string]$reader.GetValue(3)) -replace '^Automatic$', 'Auto' }
+                    if ($name -like 'SQL Server Agent (*') { $r.AgentServiceAccount = $acct; $r.AgentState = $state; $r.AgentStartMode = $start }
+                    else { $r.ServiceAccount = $acct; $r.ServiceState = $state; $r.StartMode = $start }
                 }
             }
             finally { $reader.Close() }

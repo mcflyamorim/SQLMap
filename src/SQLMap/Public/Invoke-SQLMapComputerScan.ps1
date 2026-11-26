@@ -273,6 +273,11 @@ function Invoke-SQLMapComputerScan {
                         # Service accounts without Windows admin rights (sys.dm_server_services, VIEW SERVER STATE)
                         if (-not $i.ServiceAccount -and $sc.ServiceAccount) { $i.ServiceAccount = $sc.ServiceAccount; $i.ServiceAccountSource = 'SQL connection' }
                         if (-not $i.AgentServiceAccount -and $sc.AgentServiceAccount) { $i.AgentServiceAccount = $sc.AgentServiceAccount }
+                        # States and start modes without Windows admin rights (the Windows services, when read, win)
+                        if (-not $i.AgentState -and $sc.AgentState) { $i.AgentState = $sc.AgentState }
+                        if (-not $i.AgentStartMode -and $sc.AgentStartMode) { $i.AgentStartMode = $sc.AgentStartMode }
+                        if (-not $i.StartMode -and $sc.StartMode) { $i.StartMode = $sc.StartMode }
+                        if (-not $i.ServiceState -and $sc.ServiceState) { $i.ServiceState = $sc.ServiceState }
                         # Security: logins of the service accounts, sysadmins, auth mode, sa, linked servers, AGs
                         foreach ($k in 'ServiceAccountLogin', 'AgentAccountLogin', 'AuthenticationMode', 'SaLogin', 'ScanLoginSysadmin',
                                        'SysadminLogins', 'LinkedServers', 'AvailabilityGroups') { $i[$k] = $sc.$k }
