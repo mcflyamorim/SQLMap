@@ -640,7 +640,7 @@ footer { margin-top: 28px; color: var(--text-muted); font-size: 12px; }
     if (!i.ServiceAccount) return '';
     var src = i.ServiceAccountSource === 'SQL connection' ? 'SQL' : i.ServiceAccountSource === 'AD SPN' ? 'AD' : '';
     var risk = (i.AccountRisk === 'Critical' || i.AccountRisk === 'High' || i.AccountRisk === 'Medium') ? ' <span title="' + esc(i.AccountRiskSummary || '') + '">' + riskChip(i.AccountRisk) + '</span>' : '';
-    return esc(i.ServiceAccount) + (src ? ' <span class="muted" title="Read from ' + esc(i.ServiceAccountSource) + '">(' + src + ')</span>' : '') + risk;
+    return nameHtml(i.ServiceAccount) + (src ? ' <span class="muted" title="Read from ' + esc(i.ServiceAccountSource) + '">(' + src + ')</span>' : '') + risk;
   }
   var instCols = [
     { key: 'SqlInstance', label: 'Instance', cls: 'wrap-name', get: function (i) { return i.SqlInstance; }, html: function (i) { return '<b>' + nameHtml(i.SqlInstance) + '</b>'; } },
@@ -657,6 +657,7 @@ footer { margin-top: 28px; color: var(--text-muted); font-size: 12px; }
     { key: 'SupportStatus', label: 'Support', cls: 'wrap-text', get: function (i) { return i.SupportStatus; }, html: function (i) { return supportChip(i.SupportStatus); }, sort: function (i) { return (SUPPORT[i.SupportStatus] || SUPPORT.Unknown).order; } },
     { key: 'ExtendedEndDate', label: 'Extended end', get: function (i) { return i.ExtendedEndDate; } },
     { key: 'ServiceAccount', label: 'Service account', cls: 'wrap-text', get: function (i) { return i.ServiceAccount; }, html: accountHtml },
+    { key: 'AgentServiceAccount', label: 'Agent account', cls: 'wrap-text', get: function (i) { return i.AgentServiceAccount; }, html: function (i) { return nameHtml(i.AgentServiceAccount); } },
     { key: 'Confidence', label: 'Confidence', get: function (i) { return i.Confidence; }, sort: function (i) { return { High: 1, Medium: 2, Low: 3 }[i.Confidence] || 4; } },
     { key: 'DetectedBy', label: 'Detected by', cls: 'wrap-text', get: function (i) { return arr(i.DetectedBy).join(', '); } }
   ];
@@ -671,7 +672,6 @@ footer { margin-top: 28px; color: var(--text-muted); font-size: 12px; }
     { key: 'SaLogin', label: 'sa login', get: function (i) { return i.SaLogin; } },
     { key: 'LinkedServers', label: 'Linked servers', get: function (i) { return arr(i.LinkedServers).join(' | '); } },
     { key: 'AvailabilityGroups', label: 'Availability groups', get: function (i) { return arr(i.AvailabilityGroups).join(' | '); } },
-    { key: 'AgentServiceAccount', label: 'SQL Agent account', get: function (i) { return i.AgentServiceAccount; } },
     { key: 'AgentState', label: 'SQL Agent state', get: function (i) { return i.AgentState; } },
     { key: 'AgentStartMode', label: 'SQL Agent start mode', get: function (i) { return i.AgentStartMode; } },
     { key: 'StartMode', label: 'Start mode', get: function (i) { return i.StartMode; } },
@@ -706,7 +706,7 @@ footer { margin-top: 28px; color: var(--text-muted); font-size: 12px; }
       if (stt === 'stopped' && i.IsRunning !== false) return false;
       if (stt === 'unknown' && i.IsRunning != null) return false;
       if (t) {
-        var hay = [i.SqlInstance, i.ComputerName, i.ServiceType, i.ProductName, i.Version, i.Edition, i.UpdateLevel, i.ServiceAccount, i.AccountRiskSummary, i.ClusterName, arr(i.DetectedBy).join(' '), arr(i.Components).join(' ')].join(' ').toLowerCase();
+        var hay = [i.SqlInstance, i.ComputerName, i.ServiceType, i.ProductName, i.Version, i.Edition, i.UpdateLevel, i.ServiceAccount, i.AgentServiceAccount, i.AccountRiskSummary, i.ClusterName, arr(i.DetectedBy).join(' '), arr(i.Components).join(' ')].join(' ').toLowerCase();
         if (hay.indexOf(t) < 0) return false;
       }
       return true;
