@@ -44,6 +44,8 @@ function Invoke-SQLMapScan {
         [ValidateRange(10, 3600)][int]$HostTimeoutSec = 300,
         [pscredential]$Credential,
         [pscredential]$SqlCredential,
+        # Skip the AD review of service accounts (groups, delegation, Kerberoasting, local admin)
+        [switch]$SkipAccountReview,
 
         # Output / control
         [string]$LogPath,
@@ -199,6 +201,19 @@ function Invoke-SQLMapScan {
     $ended = Get-Date
     $hostList = @(Merge-SQLMapHostResult -Hosts $hosts.ToArray() | Sort-Object ComputerName)
     $instances = @($hostList | ForEach-Object { $_.Instances } | Where-Object { $_ })
+
+    # --- Service account review (AD, read-only) ---------------------------------------
+    $accounts = @()
+    if (-not $SkipAccountReview -and $instances.Count -and -not $cancelled) {
+        if ($State) { $State.Phase = 'Reviewing accounts' }
+        & $log 'Reviewing service accounts in Active Directory...'
+        try {
+            $accounts = @(Invoke-SQLMapAccountReview -Hosts $hostList -Instances $instances -Domain $Domain -Credential $Credential -Log $log)
+            $atRisk = @($accounts | Where-Object { $_.Risk -in 'Critical', 'High' }).Count
+            & $log ("Service accounts: {0} found, {1} checked in AD, {2} with critical or high risk" -f $accounts.Count, @($accounts | Where-Object Checked).Count, $atRisk)
+        }
+        catch { & $log "Service account review failed: $(Get-SQLMapErrorMessage $_)" 'Warning' }
+    }
     $scan = [pscustomobject][ordered]@{
         SchemaVersion = 1
         Tool          = 'SQLMap'
@@ -224,6 +239,7 @@ function Invoke-SQLMapScan {
         Summary       = $null
         Hosts         = @($hostList | Select-Object -Property * -ExcludeProperty Instances)
         Instances     = $instances
+        Accounts      = $accounts
     }
     $scan.Summary = Get-SQLMapSummary -Scan $scan
     if ($State) { $State.Phase = if ($cancelled) { 'Cancelled' } else { 'Done' } }
@@ -297,7 +313,9 @@ function Get-SQLMapSummary {
         HostsWithSql      = @($hosts | Where-Object { $_.Status -eq 'SQLFound' }).Count
         HostsNoSql        = @($hosts | Where-Object { $_.Status -eq 'NoSQLFound' }).Count
         HostsInconclusive = @($hosts | Where-Object { $_.Status -eq 'Inconclusive' }).Count
-        HostsAccessDenied = @($hosts | Where-Object { $_.Status -eq 'Inconclusive' -and $_.Probes -and
+        AccountsReviewed  = @($Scan.Accounts | Where-Object { $_ -and $_.Checked }).Count
+        AccountsAtRisk    = @($Scan.Accounts | Where-Object { $_ -and $_.Risk -in 'Critical', 'High' }).Count
+        HostsAccessDenied =@($hosts | Where-Object { $_.Status -eq 'Inconclusive' -and $_.Probes -and
                                 (($_.Probes.Registry -eq 'AccessDenied') -or ($_.Probes.Service -eq 'AccessDenied')) }).Count
         HostsUnreachable  = @($hosts | Where-Object { $_.Status -in 'Unreachable', 'Unresolved' }).Count
         HostsFailed       = @($hosts | Where-Object { $_.Status -in 'Error', 'Timeout', 'Cancelled' }).Count

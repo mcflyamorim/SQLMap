@@ -38,6 +38,17 @@ function New-SQLMapInstance {
         ServiceAccountSource = $null   # Windows service | SQL connection | AD SPN
         AgentServiceAccount  = $null
         SpnAccounts       = New-Object System.Collections.Generic.List[object]   # AD accounts holding this instance's SPNs
+        ServiceAccountType   = $null   # Virtual account | Built-in account | Local account | User account | gMSA | ...
+        ServiceAccountLogin  = $null   # sysadmin | Login, not sysadmin | No login | ... (SQL connection)
+        AgentAccountLogin    = $null
+        AccountRisk          = $null   # worst risk of its service / Agent accounts (AD review)
+        AccountRiskSummary   = $null   # e.g. 'Privileged group, Kerberoastable'
+        AuthenticationMode   = $null
+        SaLogin              = $null
+        ScanLoginSysadmin    = $null
+        SysadminLogins       = $null
+        LinkedServers        = $null
+        AvailabilityGroups   = $null
         AgentState        = $null
         IsRunning         = $null
         LastHeartbeatUtc  = $null

@@ -117,6 +117,22 @@ function Get-SQLMapCimService {
     }
 }
 
+function Get-SQLMapCimLocalAdmin {
+    # Members of the local Administrators group, found by its well-known SID (the name is localized, e.g.
+    # 'Administradores'). Returns $null on domain controllers, which have no local groups.
+    # Each member: @{ Name = 'DOMAIN\x'; SID; Kind = User | Group | System }
+    param([hashtable]$Context, $CimSession)
+    $p = @{ ErrorAction = 'Stop'; OperationTimeoutSec = 30 }
+    if ($CimSession) { $p.CimSession = $CimSession }
+    $group = Get-CimInstance @p -ClassName Win32_Group -Filter "SID = 'S-1-5-32-544' AND LocalAccount = TRUE"
+    if (-not $group) { return $null }
+    $members = @(Get-CimAssociatedInstance @p -InputObject $group -Association Win32_GroupUser)
+    , @(foreach ($m in $members) {
+        $kind = switch -Wildcard ($m.CimClass.CimClassName) { 'Win32_Group' { 'Group' } 'Win32_SystemAccount' { 'System' } default { 'User' } }
+        [pscustomobject]@{ Name = "$($m.Domain)\$($m.Name)"; SID = [string]$m.SID; Kind = $kind }
+    })
+}
+
 function Get-SQLMapCimHostInfo {
     # OS, hardware and virtualization info (cores matter for licensing).
     param([hashtable]$Context, $CimSession)

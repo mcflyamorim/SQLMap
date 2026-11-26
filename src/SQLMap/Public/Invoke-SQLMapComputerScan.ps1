@@ -59,6 +59,7 @@ function Invoke-SQLMapComputerScan {
             ProbeMessages     = [ordered]@{}
             HostInfo          = $null
             Services          = @()
+            LocalAdmins       = $null   # members of the local Administrators group; $null = not read
             SPNs              = @($Target.SPNs)
             Instances         = @()
             InstanceCount     = 0
@@ -167,6 +168,16 @@ function Invoke-SQLMapComputerScan {
                         Add-SQLMapLog $ctx "Service query failed: $($h.ProbeMessages.Service)" -Level Warning
                     }
                     $h.HostInfo = Get-SQLMapCimHostInfo -Context $ctx -CimSession $cim.Session
+                    # Local Administrators: used after the scan to tell where service accounts are local admin
+                    try {
+                        $la = Get-SQLMapCimLocalAdmin -Context $ctx -CimSession $cim.Session
+                        if ($null -ne $la) {
+                            $h.LocalAdmins = @($la)
+                            Add-SQLMapLog $ctx "Local Administrators: $(@($la).Count) member(s)"
+                        }
+                        else { Add-SQLMapLog $ctx 'Local Administrators: none (domain controller: no local groups)' }
+                    }
+                    catch { Add-SQLMapLog $ctx "Local Administrators not readable: $(Get-SQLMapErrorMessage $_)" -Level Warning }
                 }
                 else {
                     $h.Probes.Service = $cim.Status
@@ -220,7 +231,8 @@ function Invoke-SQLMapComputerScan {
                           elseif ($i.InstanceName -eq 'MSSQLSERVER') { $server }
                           else { "$server\$($i.InstanceName)" }
                     $sqlTimeout = [Math]::Max(3, [int]($TimeoutMs / 300))
-                    $sc = Invoke-SQLMapSqlConnect -Context $ctx -DataSource $ds -SqlCredential $SqlCredential -TimeoutSec $sqlTimeout
+                    $acctArgs = @{ ServiceAccount = $i.ServiceAccount; AgentAccount = $i.AgentServiceAccount }
+                    $sc = Invoke-SQLMapSqlConnect -Context $ctx -DataSource $ds -SqlCredential $SqlCredential -TimeoutSec $sqlTimeout @acctArgs
 
                     # Kerberos failure ('Cannot generate SSPI context'): the MSSQLSvc SPN is missing or registered
                     # to another account. Worth reporting; retry by IP address, which makes Windows use NTLM.
@@ -228,7 +240,7 @@ function Invoke-SQLMapComputerScan {
                         -not $isLocal -and -not $i.Clustered -and $h.IPAddress) {
                         $ipDs = if ($i.TcpPort) { "$($h.IPAddress),$($i.TcpPort)" } elseif ($i.InstanceName -eq 'MSSQLSERVER') { $h.IPAddress } else { "$($h.IPAddress)\$($i.InstanceName)" }
                         Add-SQLMapLog $ctx "SqlConnect ${ds}: Kerberos failed (SPN problem); retrying by IP address with NTLM" -Level Warning
-                        $sc2 = Invoke-SQLMapSqlConnect -Context $ctx -DataSource $ipDs -SqlCredential $SqlCredential -TimeoutSec $sqlTimeout
+                        $sc2 = Invoke-SQLMapSqlConnect -Context $ctx -DataSource $ipDs -SqlCredential $SqlCredential -TimeoutSec $sqlTimeout @acctArgs
                         $i.Notes.Add('Kerberos authentication failed ("' + $sc.Message + '"): the MSSQLSvc SPN is missing, duplicated or registered to another account' +
                             $(if ($sc2.Status -eq 'OK') { '. Connected with NTLM through the IP address.' } else { '.' }))
                         if ($sc2.Status -eq 'OK') { $sc = $sc2 }
@@ -261,6 +273,9 @@ function Invoke-SQLMapComputerScan {
                         # Service accounts without Windows admin rights (sys.dm_server_services, VIEW SERVER STATE)
                         if (-not $i.ServiceAccount -and $sc.ServiceAccount) { $i.ServiceAccount = $sc.ServiceAccount; $i.ServiceAccountSource = 'SQL connection' }
                         if (-not $i.AgentServiceAccount -and $sc.AgentServiceAccount) { $i.AgentServiceAccount = $sc.AgentServiceAccount }
+                        # Security: logins of the service accounts, sysadmins, auth mode, sa, linked servers, AGs
+                        foreach ($k in 'ServiceAccountLogin', 'AgentAccountLogin', 'AuthenticationMode', 'SaLogin', 'ScanLoginSysadmin',
+                                       'SysadminLogins', 'LinkedServers', 'AvailabilityGroups') { $i[$k] = $sc.$k }
                         if ($sc.IsClustered -eq 1) { $i.Clustered = $true }
                         $i.SsisCatalog = ($sc.HasSsisCatalog -gt 0)
                         if ($i.SsisCatalog) { Add-SQLMapComponent $i 'SSISDB catalog' }

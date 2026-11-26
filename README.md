@@ -18,13 +18,23 @@ Windows UI or the command line.
 - **Accounts:** the service account and the SQL Agent account, even without admin rights on the host (from the SQL
   connection or from AD).
 - **Kerberos problems:** duplicate SPNs, or SPNs on the wrong account.
-- **With a SQL connection:** databases, data/log sizes, collation, HADR and max server memory.
+- **With a SQL connection:**
+  - databases, data/log sizes, collation, HADR and max server memory
+  - whether the service and Agent accounts have logins and are sysadmin
+  - linked servers and their login mappings, authentication mode, `sa` (enabled, renamed)
+  - availability group replicas and listeners
+- **Service account review in AD:** for each account running a SQL Server service, the checks below. Each account gets
+  a risk level from *Critical* to *No findings*. See [Service account review](#service-account-review).
+  - privileged groups (nested), `adminCount`
+  - delegation
+  - Kerberoasting exposure (SPNs, password age, RC4)
+  - local admin rights on the scanned hosts
 
 Rewrite of the old `MAP_SQLServices` script: no dbatools or RSAT dependency, parallel scanning, credential support
 and a self-contained offline report.
 
-> The output contains client infrastructure data: keep it out of source control (`Output/` is git-ignored)
-> and share it as confidential.
+> The output contains client infrastructure data and security findings (privileged service accounts, delegation,
+> linked server mappings): keep it out of source control (`Output/` is git-ignored) and share it as confidential.
 
 ## Requirements
 
@@ -45,6 +55,7 @@ Double-click **`SQLMap.cmd`**, or run `powershell.exe -STA -File .\SQLMap.ps1`.
 **Configuring a scan:**
 - The **Targets / Options / Credentials / Output** tabs on the left map 1:1 to the command-line parameters.
 - **SQL connection** is on by default, with Windows authentication unless a SQL login is set on the Credentials tab.
+- **Review service accounts in Active Directory** (Options tab) is on by default.
 - The HTML report opens when the scan finishes only if **Open the HTML report when the scan finishes** is checked
   (off by default).
 - Settings are remembered in `%APPDATA%\SQLMap\ui-settings.json`. Credentials never are: only user names.
@@ -52,6 +63,7 @@ Double-click **`SQLMap.cmd`**, or run `powershell.exe -STA -File .\SQLMap.ps1`.
 **While it runs:**
 - Results stream into the **Instances** and **Hosts** grids. Double-click a row for details: probes, services,
   notes and the scan log.
+- The **Service accounts** grid fills when the scan ends, and the Instances grid gains an **Account risk** column.
 - The progress bar shows the percent done and the estimated time left (e.g. `37% - about 8 min 10 s left`), based on
   the average pace since scanning started.
 - The summary line counts hosts, instances, engines out of support, engines behind the latest update and hosts not
@@ -88,6 +100,8 @@ remembered.
 ```
 
 - **SQL connection:** off by default on the command line. Add `-SqlConnect`, plus `-SqlCredential` for a SQL login.
+- **Service account review:** on by default; `-SkipAccountReview` turns it off. The summary lists the accounts by
+  risk.
 - **Output formats:** `-Format Html, Json, Csv` (all by default). `-OutputPath` defaults to `.\Output`.
 - **Progress:** the progress bar shows the percent done and the time left.
 - **Summary:** printed at the end:
@@ -103,7 +117,8 @@ Each run creates `Output\SQLMap_yyyyMMdd_HHmmss\` containing:
 | `SQLMap.html` | Interactive report (single file, works offline) |
 | `SQLMap.json` | Full scan, re-loadable in the UI or with `Import-SQLMapScan` |
 | `SQLMap_Instances.csv` | One row per instance, including patch level, version source, accounts, SPN accounts and notes |
-| `SQLMap_Hosts.csv` | One row per host: probe results, OS and hardware, instance count and types (`Engine 1, SSRS 1`) |
+| `SQLMap_Hosts.csv` | One row per host: probe results, OS and hardware, instance count and types (`Engine 1, SSRS 1`), local Administrators |
+| `SQLMap_Accounts.csv` | One row per service account: risk, findings, groups, delegation, password, encryption, local admin, instances using it |
 | `SQLMap.log` | Scan log |
 
 ## HTML report
@@ -118,6 +133,7 @@ A single file that works offline in Edge, Chrome or Firefox, with an Auto / Ligh
   - instances, with a count per type
   - engines out of support
   - engines behind the latest update, with the number missing a security update
+  - service accounts at risk (critical or high)
   - hosts not verified, with the number that were access denied
 - **Charts:**
   - instances by service type
@@ -131,7 +147,13 @@ A single file that works offline in Edge, Chrome or Firefox, with an Auto / Ligh
   - Sortable, with search and filters for service type, support status, patch level and state.
   - Click a row for full details: build source, servicing branch, latest build and KB, accounts, SPN accounts,
     databases and notes.
-- **Hosts tab:** probe results per host, including the TDS handshake, plus instance count and types.
+  - The details also have a **Security** section: service account type and logins, account risk, authentication
+    mode, `sa`, sysadmin members, linked servers and availability groups.
+  - A risk label next to the service account flags critical, high and medium accounts.
+- **Hosts tab:** probe results per host, including the TDS handshake, plus instance count and types. Host details list
+  the local Administrators.
+- **Service accounts tab:** one row per account, sorted by risk, with a filter for critical or high. Click a row for
+  every finding and the instances that use the account.
 - **Issues tab:** every host that could not be fully checked, and why.
 - **Export CSV:** each tab exports its own table.
 - **Layout:** tables use the full window width, and long values wrap, so all columns fit on a wide screen. Narrow
@@ -166,8 +188,8 @@ A single file that works offline in Edge, Chrome or Firefox, with an Auto / Ligh
 | TDS handshake | Part of `Tcp`. Sends the SQL Server pre-login packet to each engine port whose build is not known from the registry. The server answers with its exact build before any login, so it works when the login fails or encryption is forced. It also proves the port is a SQL Server; open ports that do not answer are ignored | TCP access to the instance port |
 | `Browser` | SQL Server Browser query (UDP 1434): instance names and ports | SQL Browser running |
 | `Registry` | Installed instances (incl. SSIS), edition, build, cluster, TCP port, Full-Text/PolyBase, last-running heartbeat | Remote Registry (current user) or WMI (`-Credential`) |
-| `Service` | Windows services (state, start mode, account) + OS, cores, memory, virtualization | WMI/CIM over WinRM or DCOM, usually local admin |
-| `SqlConnect` | Read-only queries: exact build/CU, databases, sizes, collation, HADR, SSISDB catalog, service accounts | SQL login (Windows auth or `-SqlCredential`); `VIEW SERVER STATE` for CPU count, start time and service accounts |
+| `Service` | Windows services (state, start mode, account) + OS, cores, memory, virtualization + members of the local Administrators group | WMI/CIM over WinRM or DCOM, usually local admin |
+| `SqlConnect` | Read-only queries: exact build/CU, databases, sizes, collation, HADR, SSISDB catalog, service accounts, plus security (logins of the service accounts, sysadmin members, authentication mode, `sa`, linked servers, availability groups) | SQL login (Windows auth or `-SqlCredential`). `VIEW SERVER STATE` for CPU count, start time, service accounts and AG roles. A sysadmin login sees all logins and linked servers; others see only part |
 
 - **Skipped probes:** management ports 135, 445 and 5985 are always checked, so probes that cannot work are skipped
   instead of waiting for timeouts.
@@ -209,6 +231,62 @@ came from one of the last two.
 - When the reason is *Access denied*, the scan account must be local administrator on the targets (Credentials tab or
   `-Credential`). The end of the scan says how many hosts were affected.
 - *Remote Registry service is probably stopped* is shown when port 445 answers but the registry cannot be opened.
+
+## Service account review
+
+After the scan, SQLMap reviews each account that runs a SQL Server service (engine or Agent) in Active Directory. It
+is a read-only LDAP pass, and any domain user can read these attributes. It uses the scan's domain (`-Domain` and
+`-Credential` apply), and accounts of other domains are marked *Not checked*.
+
+**Which account is reviewed:**
+
+| Service account | Reviewed in AD |
+|---|---|
+| User account, gMSA, managed service account (`CONTOSO\svc-sql`, `CONTOSO\gmsa-sql$`) | That account |
+| Virtual account (`NT Service\MSSQL$X`) or built-in (LocalSystem, Network Service) | The host's computer account, which they use on the network |
+| Local account (`.\user`) or Local Service | Not reviewed (not in AD) |
+
+**What is checked, and the risk it adds:**
+
+| Check | Finding | Risk |
+|---|---|---|
+| Nested membership in Domain Admins, Enterprise Admins, Schema Admins, Administrators, Account / Server / Backup / Print Operators, Group Policy Creator Owners, Key Admins, DnsAdmins (matched by well-known SID, so localized names work) | Privileged group | Critical |
+| `TRUSTED_FOR_DELEGATION` (not on a domain controller) | Unconstrained delegation | Critical |
+| SQL Server running on a domain controller | Domain controller | Critical |
+| `msDS-AllowedToDelegateTo` with `TRUSTED_TO_AUTH_FOR_DELEGATION` / without it | Protocol transition / Constrained delegation | High / Medium |
+| Pre-authentication disabled | AS-REP roastable | High |
+| User account with SPNs (not a gMSA) | Kerberoastable. High when the password is over a year old or RC4 is allowed (`msDS-SupportedEncryptionTypes` not set or including RC4) | Medium / High |
+| Member of the local Administrators group on other scanned hosts (directly or through a group) | Local admin | High |
+| Local admin on its own SQL host | Local admin on SQL host | Medium |
+| `adminCount = 1` without a privileged group now | adminCount | Medium |
+| `PASSWD_NOTREQD` | Password not required | Medium |
+| Password never expires / account disabled | | Low |
+
+**Also reported per account:**
+- type (user account, gMSA, managed service account, computer account)
+- `pwdLastSet` and the password age
+- `lastLogonTimestamp`, which AD replicates only every 9-14 days
+- encryption types
+- SPNs, and all groups (nested)
+- the instances using it
+- good practice found, e.g. gMSA, AES only, or marked sensitive
+
+**Per instance, with a SQL connection:**
+- **Service and Agent account logins:** whether each account has a login and is sysadmin. That can be directly,
+  through a Windows group login (matched with the account's AD groups), or through `BUILTIN\Administrators` while
+  being local admin on the host. Virtual accounts map to their service SID login (`NT SERVICE\MSSQL$X`, sysadmin by
+  default); LocalSystem maps to `NT AUTHORITY\SYSTEM`.
+- **Linked servers,** with each login mapping. "(all logins) as remote login 'sa'" means every login reaches the
+  remote server as that login.
+- **Authentication mode,** and whether `sa` is enabled and renamed.
+- **Availability groups:** replicas (with role, commit mode and failover) and listeners. This also shows which hosts
+  are replicas of the same data.
+
+**Limits:**
+- **Local admin** is known only for hosts whose local Administrators group could be read. That needs the `Service`
+  probe and admin rights; the account details say on how many hosts it was checked.
+- **Login lists and linked servers** are complete only when the scan login is sysadmin, which the instance details
+  show.
 
 ## Patch level (latest update)
 
@@ -312,6 +390,7 @@ src/SQLMap/
     Probe.Cim.ps1              services, OS/hardware
     Probe.SqlConnect.ps1       SQL queries
     Merge.ps1                  evidence merge, confidence, service account, SPN findings, lifecycle
+    AccountRisk.ps1            service account review in AD (groups, delegation, Kerberoasting, local admin)
     BuildReference.ps1         patch level against the Microsoft Learn build lists
     Common.ps1                 helpers
   Data/SqlProducts.json        versions + Microsoft lifecycle dates (review periodically)

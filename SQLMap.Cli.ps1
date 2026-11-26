@@ -40,6 +40,7 @@ param(
     [int]$HostTimeoutSec = 300,
     [pscredential]$Credential,
     [pscredential]$SqlCredential,
+    [switch]$SkipAccountReview,
 
     # Output
     [string]$OutputPath = (Join-Path $PSScriptRoot 'Output'),
@@ -97,6 +98,17 @@ if ($scan.Instances) {
                     default { $p.PatchStatus } } } },
             @{ n = 'State'; e = { if ($_.IsRunning -eq $true) { 'Running' } elseif ($_.IsRunning -eq $false) { 'Stopped' } else { '?' } } },
             SupportStatus, @{ n = 'Components'; e = { $_.Components -join ', ' } } |
+        Out-String -Width 220 | Write-Host
+}
+
+# Service accounts (AD review): the ones with findings first
+$accts = @($scan.Accounts | Where-Object { $_ })
+if ($accts.Count) {
+    Write-Host ("Service accounts: {0} found, {1} checked in AD, {2} with critical or high risk" -f $accts.Count, $s.AccountsReviewed, $s.AccountsAtRisk) -ForegroundColor Cyan
+    $order = @{ Critical = 0; High = 1; Medium = 2; Low = 3; None = 4; 'Not checked' = 5 }
+    $accts | Sort-Object { $order[$_.Risk] }, Account |
+        Format-Table -AutoSize -Property Account, Type, Risk, @{ n = 'Issues'; e = { $_.Tags -join ', ' } },
+            @{ n = 'Used by'; e = { @($_.UsedBy).Count } }, @{ n = 'Note'; e = { $_.CheckNote } } |
         Out-String -Width 220 | Write-Host
 }
 

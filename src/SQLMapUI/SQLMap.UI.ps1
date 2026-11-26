@@ -526,12 +526,16 @@ function Format-UiDetail {
     # Plain-text view of an instance or a host (with probes, services and log)
     param($Object, [ValidateSet('Instance', 'Host')][string]$Kind)
     $sb = New-Object System.Text.StringBuilder
-    $skip = @('Probes', 'ProbeMessages', 'Services', 'Log', 'HostInfo', 'Instances')
+    $skip = @('Probes', 'ProbeMessages', 'Services', 'Log', 'HostInfo', 'Instances', 'GroupSids')
     $props = $Object.PSObject.Properties | Where-Object { $_.Name -notin $skip }
     $width = ($props | ForEach-Object { $_.Name.Length } | Measure-Object -Maximum).Maximum
     foreach ($p in $props) {
         $v = $p.Value
-        if ($v -is [System.Collections.IEnumerable] -and $v -isnot [string]) { $v = (@($v) | ForEach-Object { "$_" }) -join ', ' }
+        if ($v -is [System.Collections.IEnumerable] -and $v -isnot [string]) {
+            $items = @($v | ForEach-Object { if ($_ -is [System.Management.Automation.PSCustomObject] -and $_.PSObject.Properties['Name']) { $_.Name } else { "$_" } })
+            # Long lists (findings, linked servers, local admins...) one item per line
+            $v = if ($p.Name -in 'Findings', 'UsedBy', 'LocalAdminOn', 'LinkedServers', 'AvailabilityGroups', 'Notes', 'SysadminLogins', 'Groups', 'LocalAdmins', 'SpnAccounts') { $items -join ("`r`n" + (' ' * ($width + 3))) } else { $items -join ', ' }
+        }
         [void]$sb.AppendLine(('{0} : {1}' -f $p.Name.PadRight($width), $v))
     }
     if ($Kind -eq 'Host') {
@@ -577,7 +581,7 @@ function Get-UiValue {
 
 function New-UiTables {
     $inst = New-Object System.Data.DataTable 'Instances'
-    foreach ($c in 'Instance', 'Type', 'Product', 'Build', 'Level', 'Latest update', 'Edition', 'State', 'Port', 'Support', 'Components', 'Confidence', 'Host') {
+    foreach ($c in 'Instance', 'Type', 'Product', 'Build', 'Level', 'Latest update', 'Edition', 'State', 'Port', 'Support', 'Account risk', 'Components', 'Confidence', 'Host') {
         [void]$inst.Columns.Add($c, [string])
     }
     [void]$inst.Columns.Add('Idx', [int])
@@ -591,7 +595,14 @@ function New-UiTables {
     foreach ($c in 'Ping', 'Registry', 'Services', 'Browser', 'SQL connect', 'Detail') { [void]$hosts.Columns.Add($c, [string]) }
     [void]$hosts.Columns.Add('Scan ms', [int])
     [void]$hosts.Columns.Add('Idx', [int])
-    @{ Instances = $inst; Hosts = $hosts }
+    # Service accounts (AD review, filled when the scan finishes)
+    $acct = New-Object System.Data.DataTable 'Accounts'
+    foreach ($c in 'Account', 'Type', 'Risk', 'Issues', 'Privileged groups', 'Delegation', 'Kerberoastable') { [void]$acct.Columns.Add($c, [string]) }
+    [void]$acct.Columns.Add('Password age (days)', [int])
+    foreach ($c in 'Never expires', 'Last logon', 'Encryption', 'Local admin on') { [void]$acct.Columns.Add($c, [string]) }
+    [void]$acct.Columns.Add('Used by', [int])
+    [void]$acct.Columns.Add('Idx', [int])
+    @{ Instances = $inst; Hosts = $hosts; Accounts = $acct }
 }
 
 function ConvertTo-UiDbValue {
@@ -655,6 +666,8 @@ function Add-UiInstance {
     $row['State']      = $(if ($i.IsRunning -eq $true) { 'Running' } elseif ($i.IsRunning -eq $false) { 'Stopped' } else { 'Unknown' })
     $row['Port']       = ConvertTo-UiDbValue $(if ($i.TcpPort) { "$($i.TcpPort)" + $(if ($i.DynamicPort) { ' (dyn)' } else { '' }) } else { $null })
     $row['Support']    = ConvertTo-UiDbValue $i.SupportStatus
+    $risk = Get-UiValue $i 'AccountRisk'
+    $row['Account risk'] = ConvertTo-UiDbValue $(if ($risk -and (Get-UiValue $i 'AccountRiskSummary')) { "$risk ($(Get-UiValue $i 'AccountRiskSummary'))" } else { $risk })
     $row['Components'] = ConvertTo-UiDbValue ((@($i.Components) | Where-Object { $_ }) -join ', ')
     $row['Confidence'] = ConvertTo-UiDbValue $i.Confidence
     $row['Host']       = $i.ComputerName
@@ -662,10 +675,40 @@ function Add-UiInstance {
     $u.Tables.Instances.Rows.Add($row)
 }
 
+function Add-UiAccount {
+    param($Account)
+    $u = $script:ui
+    $a = $Account
+    $u.AccountObjects.Add($a)
+    $yn = { param($v) if ($v -eq $true) { 'Yes' } elseif ($v -eq $false) { 'No' } else { $null } }
+    $deleg = @()
+    if ($a.UnconstrainedDelegation) { $deleg += 'Unconstrained' }
+    if (@($a.ConstrainedDelegationTo).Count) { $deleg += $(if ($a.ProtocolTransition) { 'Constrained + protocol transition' } else { 'Constrained' }) }
+    elseif ($a.ProtocolTransition) { $deleg += 'Protocol transition' }
+    $row = $u.Tables.Accounts.NewRow()
+    $row['Account']             = $a.Account
+    $row['Type']                = ConvertTo-UiDbValue $a.Type
+    $row['Risk']                = $(if ($a.Risk -eq 'None') { 'No findings' } else { [string]$a.Risk })
+    $row['Issues']              = ConvertTo-UiDbValue $(if (@($a.Tags).Count) { @($a.Tags) -join ', ' } else { $a.CheckNote })
+    $row['Privileged groups']   = ConvertTo-UiDbValue (@($a.PrivilegedGroups) -join ', ')
+    $row['Delegation']          = ConvertTo-UiDbValue ($deleg -join ', ')
+    $row['Kerberoastable']      = ConvertTo-UiDbValue (& $yn $a.Kerberoastable)
+    $row['Password age (days)'] = ConvertTo-UiDbValue $a.PasswordAgeDays
+    $row['Never expires']       = ConvertTo-UiDbValue (& $yn $a.PasswordNeverExpires)
+    $row['Last logon']          = ConvertTo-UiDbValue $a.LastLogon
+    $row['Encryption']          = ConvertTo-UiDbValue $a.EncryptionTypes
+    $row['Local admin on']      = ConvertTo-UiDbValue ((@($a.LocalAdminOn) | ForEach-Object { ([string]$_ -replace ' \(via .*\)$', '') }) -join ', ')
+    $row['Used by']             = @($a.UsedBy).Count
+    $row['Idx']                 = $u.AccountObjects.Count - 1
+    $u.Tables.Accounts.Rows.Add($row)
+}
+
 function Clear-UiResults {
     $u = $script:ui
     $u.Tables.Instances.Clear()
     $u.Tables.Hosts.Clear()
+    $u.Tables.Accounts.Clear()
+    $u.AccountObjects.Clear()
     $u.HostObjects.Clear()
     $u.InstanceObjects.Clear()
 }
@@ -680,6 +723,7 @@ function Show-UiScan {
         # Final scans keep instances at the top level (hosts were merged/de-duplicated at the end)
         foreach ($h in @($Scan.Hosts)) { if ($h) { Add-UiHostResult $h -SkipInstances } }
         foreach ($i in @($Scan.Instances)) { if ($i) { Add-UiInstance $i } }
+        if ($Scan.PSObject.Properties['Accounts']) { foreach ($a in @($Scan.Accounts)) { if ($a) { Add-UiAccount $a } } }
     }
     finally { $u.GridInstances.ResumeLayout(); $u.GridHosts.ResumeLayout() }
     Update-UiSummary
@@ -688,7 +732,7 @@ function Show-UiScan {
 
 function Resize-UiGrids {
     $u = $script:ui
-    foreach ($g in $u.GridInstances, $u.GridHosts) {
+    foreach ($g in $u.GridInstances, $u.GridHosts, $u.GridAccounts) {
         if ($g.Columns.Count) {
             $g.AutoResizeColumns([System.Windows.Forms.DataGridViewAutoSizeColumnsMode]::DisplayedCells)
             foreach ($col in $g.Columns) { if ($col.Width -gt 420) { $col.Width = 420 } }
@@ -707,7 +751,10 @@ function Update-UiSummary {
     $behind = @($u.Tables.Instances.Select("Type = 'Engine' AND [Latest update] LIKE '%behind%'")).Count
     $denied = @($u.Tables.Hosts.Select("Status = 'Inconclusive' AND Detail LIKE 'Access denied%'")).Count
     $deniedText = if ($denied) { " ($denied access denied: use a local administrator account)" } else { '' }
-    $u.LblSummary.Text = "Hosts: $hosts    With SQL Server: $withSql    Instances: $instances    Out of support: $oos    Behind latest update: $behind    Not verified: $notVerified$deniedText"
+    $acctRisk = @($u.Tables.Accounts.Select("Risk IN ('Critical','High')")).Count
+    $acctText = if ($u.Tables.Accounts.Rows.Count) { "    Accounts at risk: $acctRisk" } else { '' }
+    $u.LblSummary.Text = "Hosts: $hosts    With SQL Server: $withSql    Instances: $instances    Out of support: $oos    Behind latest update: $behind$acctText    Not verified: $notVerified$deniedText"
+    $u.TabAccounts.Text = "Service accounts ($($u.Tables.Accounts.Rows.Count))"
     $u.TabInstances.Text = "Instances ($instances)"
     $u.TabHosts.Text = "Hosts ($hosts)"
 }
@@ -722,6 +769,13 @@ function Set-UiGridColors {
         $v = [string]$e.Value
         $c = $null
         switch ($name) {
+            { $_ -in 'Risk', 'Account risk' } {
+                if ($v -like 'Critical*') { $c = $script:UiColors.Critical }
+                elseif ($v -like 'High*') { $c = $script:UiColors.Critical }
+                elseif ($v -like 'Medium*') { $c = $script:UiColors.Warning }
+                elseif ($v -eq 'No findings') { $c = $script:UiColors.Good }
+                elseif ($v -eq 'Not checked') { $c = $script:UiColors.Muted }
+            }
             'Support' {
                 if ($v -eq 'Out of support') { $c = $script:UiColors.Critical }
                 elseif ($v -eq 'Extended support') { $c = $script:UiColors.Warning }
@@ -923,6 +977,7 @@ function Save-UiSettings {
             OpenReport = $u.ChkOpenReport.Checked
             Theme = $script:UiTheme
             CheckBuildRefOnline = $u.ChkBuildRefOnline.Checked
+            AccountReview = $u.ChkAccountReview.Checked
             BuildRefSnoozeUntil = $u.BuildRefSnoozeUntil
         }
         $dir = Split-Path $script:UiSettingsPath
@@ -968,6 +1023,7 @@ function Restore-UiSettings {
         if ($s.Theme -in 'Dark', 'Light') { $u.Theme = [string]$s.Theme }
         # Online check is on unless the user turned it off ("Don't ask again" or the Options tab)
         if ($null -ne $s.CheckBuildRefOnline) { $u.ChkBuildRefOnline.Checked = [bool]$s.CheckBuildRefOnline }
+        if ($null -ne $s.AccountReview) { $u.ChkAccountReview.Checked = [bool]$s.AccountReview }
         $u.BuildRefSnoozeUntil = $(if ($s.BuildRefSnoozeUntil) { [string]$s.BuildRefSnoozeUntil } else { $null })
     }
     catch { }
@@ -1013,6 +1069,7 @@ function Get-UiScanParameters {
     $probes = @($u.ProbeBoxes.Keys | Where-Object { $u.ProbeBoxes[$_].Checked })
     if (-not $probes) { throw 'Select at least one probe on the Options tab.' }
     $p.Probe = $probes
+    if (-not $u.ChkAccountReview.Checked) { $p.SkipAccountReview = $true }
 
     $ports = @()
     foreach ($t in ($u.TxtPorts.Text -split '[,;\s]+' | Where-Object { $_ })) {
@@ -1143,6 +1200,9 @@ function Invoke-UiTimerTick {
     elseif ($state.Phase -eq 'Discovery' -or -not $state.Phase) {
         $u.LblStatus.Text = "Discovering targets... $elapsedText"
     }
+    elseif ($state.Phase -eq 'Reviewing accounts') {
+        $u.LblStatus.Text = "Reviewing service accounts in Active Directory... $elapsedText"
+    }
     elseif ($state.Phase -eq 'Writing reports') {
         $u.LblStatus.Text = "Writing reports... $elapsedText"
     }
@@ -1254,6 +1314,7 @@ function New-SQLMapMainForm {
         WinCredential = $null; SqlCredential = $null; LastWinUser = ''; LastSqlUser = ''; Theme = 'Dark'
         HostObjects = New-Object System.Collections.Generic.List[object]
         InstanceObjects = New-Object System.Collections.Generic.List[object]
+        AccountObjects = New-Object System.Collections.Generic.List[object]
         Tables = New-UiTables
         BgTasks = New-Object System.Collections.Generic.List[object]   # background jobs other than the scan
         BuildRefUpdating = $false; BuildRefSnoozeUntil = $null
@@ -1359,6 +1420,9 @@ function New-SQLMapMainForm {
         SqlConnect = New-UiCheckBox 'SQL connection (read-only queries: CU, databases, sizes)' $true
     }
     foreach ($k in $u.ProbeBoxes.Keys) { $u.ProbeBoxes[$k].Margin = New-Object System.Windows.Forms.Padding(12, 3, 3, 1); $o.Controls.Add($u.ProbeBoxes[$k]) }
+    $u.ChkAccountReview = New-UiCheckBox 'Review service accounts in Active Directory (groups, delegation, Kerberoasting, local admin)' $true
+    $u.ChkAccountReview.Margin = New-Object System.Windows.Forms.Padding(12, 3, 3, 1)
+    $o.Controls.Add($u.ChkAccountReview)
     $o.Controls.Add((New-UiLabel 'Scan settings' -Bold))
     $og = New-UiGrid2
     $og.Margin = New-Object System.Windows.Forms.Padding(9, 0, 3, 3)
@@ -1491,7 +1555,7 @@ function New-SQLMapMainForm {
     $u.LblSummary = New-UiLabel '' -Muted
     $right.Controls.Add($u.LblSummary, 0, 2)
 
-    $results = New-UiTabSet @('Instances', 'Hosts', 'Log')
+    $results = New-UiTabSet @('Instances', 'Hosts', 'Service accounts', 'Log')
     $u.TabInstances = $results.Buttons[0]
     $u.TabHosts = $results.Buttons[1]
     $u.GridInstances = New-UiDataGrid
@@ -1500,11 +1564,15 @@ function New-SQLMapMainForm {
     $u.GridHosts.DataSource = $u.Tables.Hosts
     $results.Pages[0].Controls.Add($u.GridInstances)
     $results.Pages[1].Controls.Add($u.GridHosts)
+    $u.TabAccounts = $results.Buttons[2]
+    $u.GridAccounts = New-UiDataGrid
+    $u.GridAccounts.DataSource = $u.Tables.Accounts
+    $results.Pages[2].Controls.Add($u.GridAccounts)
     $u.TxtLog = New-Object System.Windows.Forms.TextBox
     $u.TxtLog.Multiline = $true; $u.TxtLog.ReadOnly = $true; $u.TxtLog.ScrollBars = 'Both'; $u.TxtLog.WordWrap = $false
     $u.TxtLog.Dock = 'Fill'; $u.TxtLog.Font = $script:UiFontMono
     $u.TxtLog.MaxLength = 0
-    $results.Pages[2].Controls.Add($u.TxtLog)
+    $results.Pages[3].Controls.Add($u.TxtLog)
     $right.Controls.Add($results.Root, 0, 3)
     $u.ResultTabs = $results
 
@@ -1582,6 +1650,8 @@ function New-SQLMapMainForm {
     $hideIdx = { param($s, $e) if ($s.Columns['Idx']) { $s.Columns['Idx'].Visible = $false } }
     $u.GridInstances.Add_DataBindingComplete($hideIdx)
     $u.GridHosts.Add_DataBindingComplete($hideIdx)
+    $u.GridAccounts.Add_DataBindingComplete($hideIdx)
+    Set-UiGridColors $u.GridAccounts
     Set-UiGridColors $u.GridInstances
     Set-UiGridColors $u.GridHosts
     $u.GridInstances.Add_CellDoubleClick({ param($s, $e) Invoke-UiSafe {
@@ -1589,6 +1659,12 @@ function New-SQLMapMainForm {
         $idx = [int]$s.Rows[$e.RowIndex].Cells['Idx'].Value
         $i = $script:ui.InstanceObjects[$idx]
         Show-UiDetail -Title "$($i.SqlInstance) ($($i.ServiceType))" -Text (Format-UiDetail $i -Kind Instance)
+    } })
+    $u.GridAccounts.Add_CellDoubleClick({ param($s, $e) Invoke-UiSafe {
+        if ($e.RowIndex -lt 0) { return }
+        $idx = [int]$s.Rows[$e.RowIndex].Cells['Idx'].Value
+        $a = $script:ui.AccountObjects[$idx]
+        Show-UiDetail -Title $a.Account -Text (Format-UiDetail $a -Kind Instance)
     } })
     $u.GridHosts.Add_CellDoubleClick({ param($s, $e) Invoke-UiSafe {
         if ($e.RowIndex -lt 0) { return }

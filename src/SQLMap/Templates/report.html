@@ -193,7 +193,7 @@ footer { margin-top: 28px; color: var(--text-muted); font-size: 12px; }
     <div>
       <h1><img class="logo" alt="" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2Ij48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImciIHgxPSIwIiB5MT0iMCIgeDI9IjAiIHkyPSIxIj48c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiMyYTc4ZDYiLz48c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiMxYzVjYWIiLz48L2xpbmVhckdyYWRpZW50PjwvZGVmcz48cmVjdCB4PSI4IiB5PSI4IiB3aWR0aD0iMjQwIiBoZWlnaHQ9IjI0MCIgcng9IjUyIiBmaWxsPSJ1cmwoI2cpIi8+PHJlY3QgeD0iNDYiIHk9IjY2IiB3aWR0aD0iMTI0IiBoZWlnaHQ9IjExMiIgZmlsbD0iI2ZmZiIvPjxlbGxpcHNlIGN4PSIxMDgiIGN5PSI2NiIgcng9IjYyIiByeT0iMjAiIGZpbGw9IiNmZmYiLz48ZWxsaXBzZSBjeD0iMTA4IiBjeT0iMTc4IiByeD0iNjIiIHJ5PSIyMCIgZmlsbD0iI2ZmZiIvPjxlbGxpcHNlIGN4PSIxMDgiIGN5PSI2NiIgcng9IjU3LjUiIHJ5PSIxNS41IiBmaWxsPSJub25lIiBzdHJva2U9IiMyYTc4ZDYiIHN0cm9rZS13aWR0aD0iOSIvPjxwYXRoIGQ9Ik00NiAxMTRhNjIgMjAgMCAwIDAgMTI0IDBNNDYgMTQ2YTYyIDIwIDAgMCAwIDEyNCAwIiBmaWxsPSJub25lIiBzdHJva2U9IiMyYTc4ZDYiIHN0cm9rZS13aWR0aD0iOSIvPjxjaXJjbGUgY3g9IjE3MiIgY3k9IjE3MiIgcj0iNDIiIGZpbGw9IiMxYzVjYWIiLz48Y2lyY2xlIGN4PSIxNzIiIGN5PSIxNzIiIHI9IjMzIiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMTgiLz48cGF0aCBkPSJNMjAwIDIwMGwyOCAyOCIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjI0IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4=">SQLMap <span class="tag">SQL Server discovery report</span></h1>
       <div class="meta" id="meta"></div>
-      <div class="confidential">This report contains infrastructure details of the scanned environment. Handle and share it as confidential client data.</div>
+      <div class="confidential">This report contains infrastructure details and security findings of the scanned environment (privileged service accounts, delegation, Kerberoastable accounts, linked servers). Handle and share it as confidential client data.</div>
     </div>
     <div class="toolbar">
       <label for="theme" class="muted" style="font-size:12px">Theme</label>
@@ -222,6 +222,7 @@ footer { margin-top: 28px; color: var(--text-muted); font-size: 12px; }
   <nav class="tabs" role="tablist" aria-label="Details">
     <button class="tab" role="tab" aria-selected="true" aria-controls="panel-instances" id="tab-instances">Instances<span class="count" id="count-instances"></span></button>
     <button class="tab" role="tab" aria-selected="false" aria-controls="panel-hosts" id="tab-hosts">Hosts<span class="count" id="count-hosts"></span></button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="panel-accounts" id="tab-accounts">Service accounts<span class="count" id="count-accounts"></span></button>
     <button class="tab" role="tab" aria-selected="false" aria-controls="panel-issues" id="tab-issues">Issues<span class="count" id="count-issues"></span></button>
   </nav>
 
@@ -254,6 +255,21 @@ footer { margin-top: 28px; color: var(--text-muted); font-size: 12px; }
     </div>
     <div class="table-wrap"><table id="t-hosts"></table></div>
     <div class="pager" id="pager-hosts"></div>
+  </section>
+
+  <section class="panel" id="panel-accounts" role="tabpanel" aria-labelledby="tab-accounts" hidden>
+    <p class="muted" style="margin-top:0">Accounts that run the SQL Server services, reviewed in Active Directory (read-only). Virtual and built-in accounts (NT Service, LocalSystem, Network Service) use the host's computer account on the network, so that account is reviewed for them. Local admin is checked on the hosts whose local Administrators group could be read.</p>
+    <div class="filters">
+      <input type="search" id="f-acct-text" placeholder="Search account, group, finding, instance..." aria-label="Search accounts">
+      <select id="f-acct-risk" aria-label="Risk">
+        <option value="">Any risk</option><option value="atrisk">Critical or high</option><option value="Critical">Critical</option><option value="High">High</option><option value="Medium">Medium</option><option value="Low">Low</option><option value="None">No findings</option><option value="Not checked">Not checked</option>
+      </select>
+      <span class="spacer"></span>
+      <span class="shown" id="shown-accounts"></span>
+      <button id="csv-accounts" type="button">Export CSV</button>
+    </div>
+    <div class="table-wrap"><table id="t-accounts"></table></div>
+    <div class="pager" id="pager-accounts"></div>
   </section>
 
   <section class="panel" id="panel-issues" role="tabpanel" aria-labelledby="tab-issues" hidden>
@@ -335,6 +351,12 @@ footer { margin-top: 28px; color: var(--text-muted); font-size: 12px; }
     if (i.IsRunning === false) return chip('Stopped', 'st-neutral');
     return '<span class="muted">Unknown</span>';
   }
+  var RISK = {
+    'Critical': { cls: 'st-critical', order: 1 }, 'High': { cls: 'st-serious', order: 2 }, 'Medium': { cls: 'st-warning', order: 3 },
+    'Low': { cls: 'st-neutral', order: 4 }, 'None': { cls: 'st-good', order: 5 }, 'Not checked': { cls: 'st-neutral', order: 6 }
+  };
+  function riskChip(r) { if (!r) return '<span class="muted">-</span>'; var m = RISK[r] || RISK['Not checked']; return chip(r === 'None' ? 'No findings' : r, m.cls); }
+  function yn(v) { return v === true ? 'Yes' : v === false ? 'No' : ''; }
   var PATCH = {
     'Latest': { cls: 'st-good', order: 1 },
     'Behind': { cls: 'st-warning', order: 2 },
@@ -428,6 +450,7 @@ footer { margin-top: 28px; color: var(--text-muted); font-size: 12px; }
     { label: 'SQL Server instances', value: uniqueInstances.length, sub: typeSummary() + ' - ' + running + ' engines running' },
     { label: 'Engines out of support', value: oos, status: oos ? chip('Upgrade needed', 'st-critical') : chip('None', 'st-good') },
     { label: 'Engines behind latest update', value: behind, status: noSecurity ? chip(noSecurity === 1 ? '1 missing a security update' : noSecurity + ' missing security updates', 'st-critical') : behind ? chip('Patching needed', 'st-warning') : chip(p.BuildReference ? 'None' : 'No build reference', p.BuildReference ? 'st-good' : 'st-neutral') },
+    { label: 'Service accounts at risk', value: summary.AccountsAtRisk || 0, sub: arr(DATA.Accounts).length ? (summary.AccountsReviewed || 0) + ' of ' + arr(DATA.Accounts).length + ' accounts reviewed in AD' : 'No account review in this scan', status: summary.AccountsAtRisk ? chip('See Service accounts tab', 'st-critical') : chip(summary.AccountsReviewed ? 'None' : 'Not reviewed', summary.AccountsReviewed ? 'st-good' : 'st-neutral') },
     { label: 'Hosts not verified', value: notVerified, sub: summary.HostsAccessDenied ? summary.HostsAccessDenied + ' access denied: scan with a local administrator account' : '', status: notVerified ? chip('See Issues tab', 'st-warning') : chip('None', 'st-good') }
   ];
   el('kpis').innerHTML = kpis.map(function (k) {
@@ -616,7 +639,8 @@ footer { margin-top: 28px; color: var(--text-muted); font-size: 12px; }
   function accountHtml(i) {
     if (!i.ServiceAccount) return '';
     var src = i.ServiceAccountSource === 'SQL connection' ? 'SQL' : i.ServiceAccountSource === 'AD SPN' ? 'AD' : '';
-    return esc(i.ServiceAccount) + (src ? ' <span class="muted" title="Read from ' + esc(i.ServiceAccountSource) + '">(' + src + ')</span>' : '');
+    var risk = (i.AccountRisk === 'Critical' || i.AccountRisk === 'High' || i.AccountRisk === 'Medium') ? ' <span title="' + esc(i.AccountRiskSummary || '') + '">' + riskChip(i.AccountRisk) + '</span>' : '';
+    return esc(i.ServiceAccount) + (src ? ' <span class="muted" title="Read from ' + esc(i.ServiceAccountSource) + '">(' + src + ')</span>' : '') + risk;
   }
   var instCols = [
     { key: 'SqlInstance', label: 'Instance', cls: 'wrap-name', get: function (i) { return i.SqlInstance; }, html: function (i) { return '<b>' + nameHtml(i.SqlInstance) + '</b>'; } },
@@ -638,6 +662,15 @@ footer { margin-top: 28px; color: var(--text-muted); font-size: 12px; }
   ];
   var instCsvCols = instCols.concat([
     { key: 'ServiceAccountSource', label: 'Service account read from', get: function (i) { return i.ServiceAccountSource; } },
+    { key: 'ServiceAccountType', label: 'Service account type', get: function (i) { return i.ServiceAccountType; } },
+    { key: 'AccountRisk', label: 'Account risk', get: function (i) { return i.AccountRisk; } },
+    { key: 'AccountRiskSummary', label: 'Account issues', get: function (i) { return i.AccountRiskSummary; } },
+    { key: 'ServiceAccountLogin', label: 'Service account login', get: function (i) { return i.ServiceAccountLogin; } },
+    { key: 'AgentAccountLogin', label: 'Agent account login', get: function (i) { return i.AgentAccountLogin; } },
+    { key: 'AuthenticationMode', label: 'Authentication mode', get: function (i) { return i.AuthenticationMode; } },
+    { key: 'SaLogin', label: 'sa login', get: function (i) { return i.SaLogin; } },
+    { key: 'LinkedServers', label: 'Linked servers', get: function (i) { return arr(i.LinkedServers).join(' | '); } },
+    { key: 'AvailabilityGroups', label: 'Availability groups', get: function (i) { return arr(i.AvailabilityGroups).join(' | '); } },
     { key: 'AgentServiceAccount', label: 'SQL Agent account', get: function (i) { return i.AgentServiceAccount; } },
     { key: 'SpnAccounts', label: 'SPN accounts', get: function (i) { return arr(i.SpnAccounts).join(' | '); } },
     { key: 'ServicingBranch', label: 'Servicing branch', get: function (i) { return i.ServicingBranch; } },
@@ -670,7 +703,7 @@ footer { margin-top: 28px; color: var(--text-muted); font-size: 12px; }
       if (stt === 'stopped' && i.IsRunning !== false) return false;
       if (stt === 'unknown' && i.IsRunning != null) return false;
       if (t) {
-        var hay = [i.SqlInstance, i.ComputerName, i.ServiceType, i.ProductName, i.Version, i.Edition, i.UpdateLevel, i.ServiceAccount, i.ClusterName, arr(i.DetectedBy).join(' '), arr(i.Components).join(' ')].join(' ').toLowerCase();
+        var hay = [i.SqlInstance, i.ComputerName, i.ServiceType, i.ProductName, i.Version, i.Edition, i.UpdateLevel, i.ServiceAccount, i.AccountRiskSummary, i.ClusterName, arr(i.DetectedBy).join(' '), arr(i.Components).join(' ')].join(' ').toLowerCase();
         if (hay.indexOf(t) < 0) return false;
       }
       return true;
@@ -745,11 +778,63 @@ footer { margin-top: 28px; color: var(--text-muted); font-size: 12px; }
     onOpen: openHost
   });
 
+  // ---------- service accounts ----------
+  var accounts = arr(DATA.Accounts);
+  function delegation(a) {
+    var d = [], to = arr(a.ConstrainedDelegationTo);
+    if (a.UnconstrainedDelegation) d.push('Unconstrained');
+    if (to.length) d.push((a.ProtocolTransition ? 'Constrained + protocol transition' : 'Constrained') + ' (' + to.length + ' target' + (to.length > 1 ? 's' : '') + ')');
+    else if (a.ProtocolTransition) d.push('Protocol transition');
+    return d.join(', ');
+  }
+  function adminHosts(a) { return arr(a.LocalAdminOn).map(function (x) { return String(x).replace(/ \(via .*\)$/, ''); }).join(', '); }
+  var acctCols = [
+    { key: 'Account', label: 'Account', cls: 'wrap-name', get: function (a) { return a.Account; }, html: function (a) { return '<b>' + nameHtml(a.Account) + '</b>'; } },
+    { key: 'Type', label: 'Type', cls: 'wrap-text', get: function (a) { return a.Type; } },
+    { key: 'Risk', label: 'Risk', get: function (a) { return a.Risk; }, html: function (a) { return riskChip(a.Risk); }, sort: function (a) { return (RISK[a.Risk] || RISK['Not checked']).order; } },
+    { key: 'Tags', label: 'Issues', cls: 'wrap-text wide-min', get: function (a) { return arr(a.Tags).join(', '); }, html: function (a) { return arr(a.Tags).length ? esc(arr(a.Tags).join(', ')) : '<span class="muted">' + esc(a.CheckNote || '-') + '</span>'; } },
+    { key: 'PrivilegedGroups', label: 'Privileged groups', cls: 'wrap-text', get: function (a) { return arr(a.PrivilegedGroups).join(', '); } },
+    { key: 'Delegation', label: 'Delegation', cls: 'wrap-text', get: delegation },
+    { key: 'Kerberoastable', label: 'Kerberoastable', get: function (a) { return yn(a.Kerberoastable); } },
+    { key: 'PasswordAgeDays', label: 'Password age (days)', cls: 'num', get: function (a) { return a.PasswordAgeDays; }, sort: function (a) { return a.PasswordAgeDays == null ? -1 : a.PasswordAgeDays; } },
+    { key: 'PasswordNeverExpires', label: 'Never expires', get: function (a) { return yn(a.PasswordNeverExpires); } },
+    { key: 'LastLogon', label: 'Last logon', get: function (a) { return a.LastLogon; } },
+    { key: 'EncryptionTypes', label: 'Encryption', cls: 'wrap-text', get: function (a) { return a.EncryptionTypes; } },
+    { key: 'LocalAdminOn', label: 'Local admin on', cls: 'wrap-text', get: adminHosts },
+    { key: 'UsedBy', label: 'Used by', cls: 'num', get: function (a) { return arr(a.UsedBy).length; }, sort: function (a) { return arr(a.UsedBy).length; } }
+  ];
+  var acctCsvCols = acctCols.concat([
+    { key: 'Findings', label: 'Findings', get: function (a) { return arr(a.Findings).join(' | '); } },
+    { key: 'AdminCount', label: 'adminCount', get: function (a) { return a.AdminCount; } },
+    { key: 'Enabled', label: 'Enabled', get: function (a) { return yn(a.Enabled); } },
+    { key: 'ConstrainedDelegationTo', label: 'Constrained delegation to', get: function (a) { return arr(a.ConstrainedDelegationTo).join(', '); } },
+    { key: 'SPNs', label: 'SPNs', get: function (a) { return arr(a.SPNs).join(', '); } },
+    { key: 'Groups', label: 'Groups (nested)', get: function (a) { return arr(a.Groups).join(', '); } },
+    { key: 'UsedByList', label: 'Used by (instances)', get: function (a) { return arr(a.UsedBy).join(' | '); } },
+    { key: 'CheckNote', label: 'Note', get: function (a) { return a.CheckNote; } }
+  ]);
+  makeTable({
+    tableId: 't-accounts', shownId: 'shown-accounts', pagerId: 'pager-accounts', csvId: 'csv-accounts', csvName: 'sqlmap-service-accounts.csv',
+    rows: accounts, columns: acctCols, csvColumns: acctCsvCols, defaultSort: 'Risk', inputs: ['f-acct-text', 'f-acct-risk'],
+    filter: function (a) {
+      var t = el('f-acct-text').value.trim().toLowerCase(), r = el('f-acct-risk').value;
+      if (r === 'atrisk' && a.Risk !== 'Critical' && a.Risk !== 'High') return false;
+      if (r && r !== 'atrisk' && a.Risk !== r) return false;
+      if (t) {
+        var hay = [a.Account, a.Type, a.Risk, a.CheckNote, arr(a.Tags).join(' '), arr(a.Findings).join(' '), arr(a.Groups).join(' '), arr(a.UsedBy).join(' '), adminHosts(a)].join(' ').toLowerCase();
+        if (hay.indexOf(t) < 0) return false;
+      }
+      return true;
+    },
+    onOpen: openAccount
+  });
+
   // ---------- tabs ----------
   el('count-instances').textContent = instances.length;
   el('count-hosts').textContent = hosts.length;
   el('count-issues').textContent = issues.length;
-  var tabs = ['instances', 'hosts', 'issues'];
+  el('count-accounts').textContent = accounts.length;
+  var tabs = ['instances', 'hosts', 'accounts', 'issues'];
   tabs.forEach(function (t) {
     el('tab-' + t).addEventListener('click', function () {
       tabs.forEach(function (o) {
@@ -771,6 +856,23 @@ footer { margin-top: 28px; color: var(--text-muted); font-size: 12px; }
     if (!rows.length) return '<div class="empty">None</div>';
     return '<div class="table-wrap"><table><thead><tr>' + cols.map(function (c) { return '<th>' + esc(c[0]) + '</th>'; }).join('') + '</tr></thead><tbody>' +
       rows.map(function (r) { return '<tr>' + cols.map(function (c) { return '<td>' + esc(text(r[c[1]])) + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>';
+  }
+  function openAccount(a) {
+    var html = kv([
+      ['Account', a.Account], ['Type', a.Type], ['Risk', riskChip(a.Risk), true], ['Checked in AD', a.Checked ? 'Yes' : 'No'], ['Note', a.CheckNote],
+      ['Enabled', yn(a.Enabled)], ['Privileged groups', arr(a.PrivilegedGroups)], ['adminCount', a.AdminCount],
+      ['Unconstrained delegation', yn(a.UnconstrainedDelegation)], ['Constrained delegation to', arr(a.ConstrainedDelegationTo)],
+      ['Protocol transition', yn(a.ProtocolTransition)], ['Sensitive, cannot be delegated', yn(a.SensitiveNoDelegation)],
+      ['Kerberoastable', yn(a.Kerberoastable)], ['AS-REP roastable', yn(a.AsRepRoastable)],
+      ['Password last set', a.PasswordLastSet], ['Password age (days)', a.PasswordAgeDays], ['Password never expires', yn(a.PasswordNeverExpires)],
+      ['Last logon (approx.)', a.LastLogon], ['Encryption types', a.EncryptionTypes], ['SPNs', arr(a.SPNs)],
+      ['Local admin on', arr(a.LocalAdminOn)],
+      ['Local admin checked on', a.LocalAdminHostsChecked ? a.LocalAdminHostsChecked + ' host(s) whose local Administrators group was readable' : null],
+      ['Good practice', arr(a.GoodPractice)], ['Groups (nested)', arr(a.Groups)]
+    ]);
+    html += '<div class="section-title">Findings</div>' + (arr(a.Findings).length ? '<ul>' + arr(a.Findings).map(function (f) { return '<li>' + esc(f) + '</li>'; }).join('') + '</ul>' : '<div class="empty">None</div>');
+    html += '<div class="section-title">Used by</div><ul>' + arr(a.UsedBy).map(function (u) { return '<li>' + esc(u) + '</li>'; }).join('') + '</ul>';
+    openDialog(a.Account, html);
   }
   function openDialog(title, html) {
     el('detail-title').textContent = title;
@@ -796,6 +898,16 @@ footer { margin-top: 28px; color: var(--text-muted); font-size: 12px; }
       ['SQL connect', i.SqlConnectStatus], ['SQL connect message', i.SqlConnectMessage],
       ['Confidence', i.Confidence], ['Detected by', arr(i.DetectedBy)], ['Notes', arr(i.Notes).join(' | ')]
     ]);
+    function lines(v) { return arr(v).length ? arr(v).map(esc).join('<br>') : null; }
+    var sec = kv([
+      ['Service account type', i.ServiceAccountType], ['Service account login', i.ServiceAccountLogin], ['SQL Agent account login', i.AgentAccountLogin],
+      ['Account risk', i.AccountRisk ? riskChip(i.AccountRisk) + (i.AccountRiskSummary ? ' ' + esc(i.AccountRiskSummary) : '') : null, true],
+      ['Authentication mode', i.AuthenticationMode], ['sa login', i.SaLogin], ['sysadmin members', lines(i.SysadminLogins), true],
+      ['Linked servers', i.LinkedServers == null ? null : (lines(i.LinkedServers) || 'None'), true],
+      ['Availability groups', lines(i.AvailabilityGroups), true],
+      ['Scan login is sysadmin', i.ScanLoginSysadmin == null ? null : (i.ScanLoginSysadmin ? 'Yes' : 'No: logins, sysadmins and linked servers may be incomplete')]
+    ]);
+    if (sec.indexOf('<dt>') >= 0) html += '<div class="section-title">Security</div>' + sec;
     var h = hosts.filter(function (x) { return x.ComputerName === i.ComputerName; })[0];
     if (h) html += '<button type="button" id="open-host">Open host ' + esc(h.ComputerName) + '</button>';
     openDialog(i.SqlInstance + ' (' + i.ServiceType + ')', html);
@@ -808,7 +920,8 @@ footer { margin-top: 28px; color: var(--text-muted); font-size: 12px; }
       ['Discovered by', arr(h.Sources)], ['Open ports', arr(h.OpenPorts)], ['OS', info.OSCaption || h.AdOperatingSystem], ['OS version', info.OSVersion],
       ['Domain', info.Domain], ['Manufacturer / model', [info.Manufacturer, info.Model].filter(Boolean).join(' / ')], ['Virtual', info.IsVirtual == null ? null : (info.IsVirtual ? 'Yes' : 'No')],
       ['Sockets / cores / logical', info.Cores == null ? null : [info.Sockets, info.Cores, info.LogicalProcessors].join(' / ')], ['Memory GB', info.MemoryGB],
-      ['Last boot', fmtDate(info.LastBootTime)], ['SPNs', arr(h.SPNs)], ['Scan duration ms', h.DurationMs]
+      ['Last boot', fmtDate(info.LastBootTime)], ['SPNs', arr(h.SPNs)],
+      ['Local Administrators', h.LocalAdmins == null ? 'Not read' : arr(h.LocalAdmins).map(function (m) { return m.Name; })], ['Scan duration ms', h.DurationMs]
     ]);
     html += '<div class="section-title">Probes</div>' + miniTable(Object.keys(pr).map(function (k) { return { p: k, r: pr[k], m: pm[k] || (k === 'Registry' ? pm.RegistryMethod : '') }; }), [['Probe', 'p'], ['Result', 'r'], ['Message', 'm']]);
     var hostInst = instances.filter(function (x) { return x.ComputerName === h.ComputerName; });
