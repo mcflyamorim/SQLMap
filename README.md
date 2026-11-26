@@ -39,7 +39,10 @@ and a self-contained offline report.
 ## Requirements
 
 - Windows PowerShell 5.1 or PowerShell 7+ on Windows.
-- Nothing to install. AD discovery uses ADSI, so the RSAT ActiveDirectory module is **not** needed.
+- Nothing to install. AD discovery and the service account review use ADSI, so the RSAT ActiveDirectory module is
+  **not** needed.
+- AD discovery and the service account review need a domain-joined computer, or `-Domain` with `-Credential`. Any
+  domain user can read what they use.
 - If the files were downloaded (zip/e-mail), unblock them first: `Get-ChildItem -Recurse | Unblock-File`.
 
 ## Windows UI
@@ -66,8 +69,10 @@ Double-click **`SQLMap.cmd`**, or run `powershell.exe -STA -File .\SQLMap.ps1`.
 - The **Service accounts** grid fills when the scan ends, and the Instances grid gains an **Account risk** column.
 - The progress bar shows the percent done and the estimated time left (e.g. `37% - about 8 min 10 s left`), based on
   the average pace since scanning started.
-- The summary line counts hosts, instances, engines out of support, engines behind the latest update and hosts not
-  verified, including how many were *access denied*.
+- The summary line counts hosts, instances, engines out of support, engines behind the latest update, service
+  accounts at risk and hosts not verified, including how many were *access denied*.
+- After the hosts, the status line shows *Reviewing service accounts in Active Directory...* while the account
+  review runs.
 - **Cancel** stops the scan and keeps what was already found.
 
 **Afterwards:**
@@ -107,6 +112,7 @@ remembered.
 - **Summary:** printed at the end:
   - host counts, and instance counts by type
   - engines out of support, behind the latest update and missing security updates
+  - service accounts found, checked in AD and at risk, then a table of the accounts sorted by risk
   - an access-denied hint, when there are such hosts
   - a warning when the build reference is old
 
@@ -116,7 +122,7 @@ Each run creates `Output\SQLMap_yyyyMMdd_HHmmss\` containing:
 |---|---|
 | `SQLMap.html` | Interactive report (single file, works offline) |
 | `SQLMap.json` | Full scan, re-loadable in the UI or with `Import-SQLMapScan` |
-| `SQLMap_Instances.csv` | One row per instance, including patch level, version source, accounts, SPN accounts and notes |
+| `SQLMap_Instances.csv` | One row per instance: patch level, version source, accounts and their type, logins and risk, SPN accounts, authentication mode, `sa`, sysadmin members, linked servers, availability groups and notes |
 | `SQLMap_Hosts.csv` | One row per host: probe results, OS and hardware, instance count and types (`Engine 1, SSRS 1`), local Administrators |
 | `SQLMap_Accounts.csv` | One row per service account: risk, findings, groups, delegation, password, encryption, local admin, instances using it |
 | `SQLMap.log` | Scan log |
@@ -353,8 +359,16 @@ $scan = Invoke-SQLMapScan -ActiveDirectory -SPN -SqlConnect -Verbose
 $scan.Instances | Where-Object PatchStatus -eq 'Security update missing' | Format-Table SqlInstance, Version, UpdateLevel, LatestUpdate
 $scan | Export-SQLMapReport -Path .\Output\Contoso
 
+# Service accounts with critical or high findings, and the instances whose service account is sysadmin
+$scan.Accounts | Where-Object Risk -in 'Critical', 'High' | Format-Table Account, Type, Risk, Tags
+$scan.Instances | Where-Object ServiceAccountLogin -like 'sysadmin*' | Format-Table SqlInstance, ServiceAccount, ServiceAccountLogin
+
 # Single host
-Invoke-SQLMapComputerScan -Target SRV01 -Probe Ping, Tcp, Registry, Service
+Invoke-SQLMapComputerScan -Target SRV01 -Probe Ping, Tcp, Registry, Service, SqlConnect
+
+# Skip the AD review of service accounts
+Invoke-SQLMapScan -ComputerName SRV01, SRV02 -SqlConnect -SkipAccountReview
+
 
 # Re-render an old scan with the current report template
 Import-SQLMapScan .\Output\Contoso\SQLMap.json | Export-SQLMapReport -Path .\Output\Contoso -Format Html
@@ -367,6 +381,8 @@ Exported functions:
 - `Export-SQLMapReport`
 - `Import-SQLMapScan`
 - `Update-SQLMapBuildReference`
+
+The scan object has `Hosts`, `Instances`, `Accounts` (service account review) and `Summary`.
 
 `Invoke-SQLMapScan -State <synchronized hashtable>` exposes progress counters, a log queue, a finished-host queue and
 a `CancelRequested` flag. This is how the WinForms UI follows and cancels a scan.
@@ -387,8 +403,8 @@ src/SQLMap/
     Discovery.ps1              AD, SPN (with account owners), IP range, broadcast, file
     Probe.Network.ps1          DNS, ping, TCP, TDS pre-login handshake, SQL Browser
     Probe.Registry.ps1         Remote Registry / WMI StdRegProv readers
-    Probe.Cim.ps1              services, OS/hardware
-    Probe.SqlConnect.ps1       SQL queries
+    Probe.Cim.ps1              services, OS/hardware, local Administrators
+    Probe.SqlConnect.ps1       SQL queries (inventory, service account logins, linked servers, AGs, sa)
     Merge.ps1                  evidence merge, confidence, service account, SPN findings, lifecycle
     AccountRisk.ps1            service account review in AD (groups, delegation, Kerberoasting, local admin)
     BuildReference.ps1         patch level against the Microsoft Learn build lists
