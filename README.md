@@ -105,7 +105,16 @@ timeouts.
 - **Access denied:** hosts where the registry and services could not be read show *Access denied* and are counted at
   the end of the scan. The scan account must be local administrator on the targets (Credentials tab or `-Credential`).
 - **Kerberos errors:** "Cannot generate SSPI context" points to a missing, duplicate or wrongly registered SPN. It is
-  noted on the instance, and the connection is retried by IP address (NTLM). Every instance gets a **confidence** level: *High* (registry, services or SQL connection), *Medium*
+  noted on the instance, and the connection is retried by IP address (NTLM).
+- **Service account:** read from the first source that works. The report marks the column `(SQL)` or `(AD)` when the
+  account came from one of the last two.
+  1. Windows services (needs local admin).
+  2. The SQL connection, using `sys.dm_server_services` (needs `VIEW SERVER STATE`, SQL Server 2008 R2 SP1+). This
+     also gives the SQL Agent account.
+  3. The AD account holding the instance's `MSSQLSvc` SPN, with `-SPN` (any domain user can read it). An SPN on the
+     computer account means a built-in account (NT Service, LocalSystem or Network Service).
+- **SPN findings:** with `-SPN`, an instance note flags an SPN registered on two accounts (duplicate) or on a
+  different account than the one the service runs as. Both break Kerberos. Every instance gets a **confidence** level: *High* (registry, services or SQL connection), *Medium*
 (Browser, or SPN + open port), *Low* (only an SPN or an open port).
 
 Host statuses: `SQLFound`, `NoSQLFound`, `Inconclusive` (reachable, but neither registry nor services could be

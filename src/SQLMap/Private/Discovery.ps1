@@ -9,7 +9,9 @@ function New-SQLMapTarget {
         [string]$OperatingSystem,
         [string]$Description,
         [string[]]$SPN = @(),
-        [string[]]$InstanceHint = @()
+        [string[]]$InstanceHint = @(),
+        # @{ SPN; Account; Kind = User|ManagedServiceAccount|Computer; Duplicate } from SPN discovery
+        [object[]]$SpnOwner = @()
     )
     [pscustomobject][ordered]@{
         ComputerName    = $ComputerName.Trim()
@@ -21,6 +23,7 @@ function New-SQLMapTarget {
         Description     = $Description
         SPNs            = @($SPN)
         InstanceHints   = @($InstanceHint)
+        SpnOwners       = @($SpnOwner | Where-Object { $_ })
     }
 }
 
@@ -39,6 +42,8 @@ function Merge-SQLMapTarget {
         $e.Sources       = @($e.Sources + $t.Sources | Select-Object -Unique)
         $e.SPNs          = @($e.SPNs + $t.SPNs | Where-Object { $_ } | Select-Object -Unique)
         $e.InstanceHints = @($e.InstanceHints + $t.InstanceHints | Where-Object { $_ } | Select-Object -Unique)
+        $known = @($e.SpnOwners | ForEach-Object { "$($_.SPN)|$($_.Account)".ToLowerInvariant() })
+        $e.SpnOwners     = @(@($e.SpnOwners) + @($t.SpnOwners | Where-Object { $_ -and ("$($_.SPN)|$($_.Account)".ToLowerInvariant() -notin $known) }) | Where-Object { $_ })
         if (-not $e.IPAddress -and $t.IPAddress) { $e.IPAddress = $t.IPAddress }
         if (-not $e.OperatingSystem -and $t.OperatingSystem) { $e.OperatingSystem = $t.OperatingSystem }
         if (-not $e.Description -and $t.Description) { $e.Description = $t.Description }
@@ -129,12 +134,20 @@ function Get-SQLMapSpnTarget {
     param([string]$Domain, [string]$SearchBase, [pscredential]$Credential)
     $searcher = Get-SQLMapDirectorySearcher -Domain $Domain -SearchBase $SearchBase -Credential $Credential
     $searcher.Filter = '(servicePrincipalName=MSSQLSvc/*)'
-    [void]$searcher.PropertiesToLoad.Add('serviceprincipalname')
+    # The account holding an SPN is the SQL Server service account when it is a user or managed service account
+    # (readable by any domain user, no admin rights on the SQL Server host needed)
+    foreach ($p in 'serviceprincipalname', 'samaccountname', 'objectclass', 'msds-principalname') { [void]$searcher.PropertiesToLoad.Add($p) }
 
     $byHost = @{}
+    $spnAccounts = @{}   # SPN (lower case) -> accounts holding it; more than one = duplicate SPN
     $results = $searcher.FindAll()
     try {
         foreach ($r in $results) {
+            $classes = @($r.Properties['objectclass'] | ForEach-Object { [string]$_ })
+            $kind = if ($classes -contains 'msDS-GroupManagedServiceAccount' -or $classes -contains 'msDS-ManagedServiceAccount') { 'ManagedServiceAccount' }
+                    elseif ($classes -contains 'computer') { 'Computer' } else { 'User' }
+            $principal = @($r.Properties['msds-principalname'])[0]
+            $account = if ($principal) { [string]$principal } else { [string]@($r.Properties['samaccountname'])[0] }
             foreach ($spn in $r.Properties['serviceprincipalname']) {
                 # [regex]::Match, not -notmatch: in PS 5.1 -notmatch does not reliably fill $Matches
                 $m = [regex]::Match([string]$spn, '^MSSQLSvc/([^:/]+)(?::(.+))?$', 'IgnoreCase')
@@ -142,9 +155,14 @@ function Get-SQLMapSpnTarget {
                 $h = $m.Groups[1].Value
                 $suffix = if ($m.Groups[2].Success) { $m.Groups[2].Value } else { $null }
                 $key = (Get-SQLMapShortName $h).ToLowerInvariant()
-                if (-not $byHost.ContainsKey($key)) { $byHost[$key] = @{ Name = $h; SPNs = @(); Hints = @() } }
+                if (-not $byHost.ContainsKey($key)) { $byHost[$key] = @{ Name = $h; SPNs = @(); Hints = @(); Owners = @() } }
                 $byHost[$key].SPNs += [string]$spn
                 if ($suffix -and $suffix -notmatch '^\d+$') { $byHost[$key].Hints += $suffix }
+                $owner = [pscustomobject]@{ SPN = [string]$spn; Account = $account; Kind = $kind; Duplicate = $false }
+                $byHost[$key].Owners += $owner
+                $spnKey = ([string]$spn).ToLowerInvariant()
+                if (-not $spnAccounts.ContainsKey($spnKey)) { $spnAccounts[$spnKey] = @() }
+                $spnAccounts[$spnKey] += $account
             }
         }
     }
@@ -152,7 +170,8 @@ function Get-SQLMapSpnTarget {
 
     foreach ($k in $byHost.Keys) {
         $e = $byHost[$k]
-        New-SQLMapTarget -ComputerName $e.Name -Source 'SPN' -SPN ($e.SPNs | Select-Object -Unique) -InstanceHint ($e.Hints | Select-Object -Unique)
+        foreach ($o in $e.Owners) { $o.Duplicate = (@($spnAccounts[$o.SPN.ToLowerInvariant()] | Select-Object -Unique).Count -gt 1) }
+        New-SQLMapTarget -ComputerName $e.Name -Source 'SPN' -SPN ($e.SPNs | Select-Object -Unique) -InstanceHint ($e.Hints | Select-Object -Unique) -SpnOwner $e.Owners
     }
 }
 

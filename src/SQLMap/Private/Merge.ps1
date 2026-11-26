@@ -35,6 +35,9 @@ function New-SQLMapInstance {
         ServiceState      = $null
         StartMode         = $null
         ServiceAccount    = $null
+        ServiceAccountSource = $null   # Windows service | SQL connection | AD SPN
+        AgentServiceAccount  = $null
+        SpnAccounts       = New-Object System.Collections.Generic.List[object]   # AD accounts holding this instance's SPNs
         AgentState        = $null
         IsRunning         = $null
         LastHeartbeatUtc  = $null
@@ -87,6 +90,7 @@ function Merge-SQLMapInstance {
         [string[]]$SPN = @(),
         [string[]]$InstanceHint = @(),
         [int[]]$OpenSqlPorts = @(),
+        [object[]]$SpnOwner = @(),
         [bool]$AuthoritativeOK
     )
     $map = [ordered]@{}
@@ -129,6 +133,7 @@ function Merge-SQLMapInstance {
             $i.ServiceState   = $s.State
             $i.StartMode      = $s.StartMode
             $i.ServiceAccount = $s.StartName
+            if ($s.StartName) { $i.ServiceAccountSource = 'Windows service' }
         }
     }
     foreach ($s in $Services) {
@@ -139,7 +144,7 @@ function Merge-SQLMapInstance {
         if (-not $i -and $cs.Parent -eq 'SSIS') { $i = & $get 'SSIS' $s.InstanceName; Add-SQLMapEvidence $i 'Service' }
         if (-not $i) { continue }
         Add-SQLMapComponent $i $cs.Label
-        if ($s.ServiceType -eq 'Agent') { $i.AgentState = $s.State }
+        if ($s.ServiceType -eq 'Agent') { $i.AgentState = $s.State; $i.AgentServiceAccount = $s.StartName }
     }
 
     # 3. SQL Server Browser
@@ -206,7 +211,79 @@ function Merge-SQLMapInstance {
         }
     }
 
+    # 6. AD accounts holding each SPN (SPN discovery): the service account when it is a user / managed service
+    #    account. Attached here; Complete-SQLMapInstance uses them once the SQL connection had its chance.
+    foreach ($o in $SpnOwner) {
+        if (-not $o -or -not $o.SPN) { continue }
+        $m = [regex]::Match([string]$o.SPN, '^MSSQLSvc/[^:/]+(?::(.+))?$', 'IgnoreCase')
+        if (-not $m.Success) { continue }
+        $suffix = if ($m.Groups[1].Success) { $m.Groups[1].Value } else { $null }
+        $engines = @($map.Values | Where-Object { $_.ServiceType -eq 'Engine' })
+        $target = if (-not $suffix) { & $find 'Engine' 'MSSQLSERVER' }
+                  elseif ($suffix -match '^\d+$') {
+                      $t = $engines | Where-Object { $_.TcpPort -eq [int]$suffix } | Select-Object -First 1
+                      if (-not $t -and $suffix -eq '1433') { $t = & $find 'Engine' 'MSSQLSERVER' }
+                      $t
+                  }
+                  else { & $find 'Engine' $suffix }
+        if ($target) { $target.SpnAccounts.Add($o) }
+    }
+
     @($map.Values)
+}
+
+function Get-SQLMapAccountKey {
+    # 'CONTOSO\svc-sql', 'svc-sql@contoso.com', 'svc-sql' -> 'svc-sql' (gMSA '$' removed) for comparisons
+    param([string]$Account)
+    if (-not $Account) { return '' }
+    $a = $Account.Trim()
+    if ($a -match '\\') { $a = ($a -split '\\')[-1] }
+    if ($a -match '@') { $a = ($a -split '@')[0] }
+    $a.TrimEnd('$').ToLowerInvariant()
+}
+
+function Test-SQLMapBuiltInAccount {
+    # Accounts that use the computer's identity on the network (their SPNs belong on the computer account)
+    param([string]$Account)
+    $Account -match '^(NT SERVICE\\|NT AUTHORITY\\|LocalSystem$|\.\\LocalSystem$|LocalService$|NetworkService$)'
+}
+
+function Complete-SQLMapSpnAccount {
+    # Service account fallback from AD, plus SPN findings (duplicate SPN, SPN on the wrong account)
+    param($Instance)
+    $i = $Instance
+    $owners = @($i.SpnAccounts.ToArray())
+    if (-not $owners.Count) { $i.SpnAccounts = @(); return }
+    $kindText = @{ User = 'user account'; ManagedServiceAccount = 'managed service account'; Computer = 'computer account' }
+
+    $domainOwners = @($owners | Where-Object { $_.Kind -ne 'Computer' })
+    $accounts = @($domainOwners | ForEach-Object { $_.Account } | Select-Object -Unique)
+    if (-not $i.ServiceAccount) {
+        if ($accounts.Count -eq 1) { $i.ServiceAccount = $accounts[0]; $i.ServiceAccountSource = 'AD SPN' }
+        elseif (-not $domainOwners.Count) {
+            $i.ServiceAccount = 'Built-in account (NT Service, LocalSystem or Network Service)'
+            $i.ServiceAccountSource = 'AD SPN'
+        }
+    }
+
+    foreach ($o in @($owners | Where-Object { $_.Duplicate })) {
+        $i.Notes.Add("Duplicate SPN: $($o.SPN) is registered on more than one AD account. Kerberos fails for this instance ('Cannot generate SSPI context'); keep it only on the service account.")
+    }
+    if ($accounts.Count -gt 1) {
+        $i.Notes.Add("This instance's SPNs are registered on different accounts ($($accounts -join ', ')); only the service account should hold them.")
+    }
+    # SPN on the wrong account: Kerberos authentication fails and clients fall back to NTLM or get SSPI errors
+    if ($i.ServiceAccount -and $i.ServiceAccountSource -ne 'AD SPN') {
+        $builtIn = Test-SQLMapBuiltInAccount $i.ServiceAccount
+        foreach ($o in $owners) {
+            $wrong = if ($o.Kind -eq 'Computer') { -not $builtIn }
+                     else { $builtIn -or ((Get-SQLMapAccountKey $o.Account) -ne (Get-SQLMapAccountKey $i.ServiceAccount)) }
+            if ($wrong) {
+                $i.Notes.Add("SPN $($o.SPN) is registered on $($o.Account) ($($kindText[$o.Kind])), but the service runs as $($i.ServiceAccount): Kerberos authentication to this instance fails.")
+            }
+        }
+    }
+    $i.SpnAccounts = @($owners | ForEach-Object { "$($_.SPN) = $($_.Account) ($($kindText[$_.Kind]))" + $(if ($_.Duplicate) { ' [duplicate]' } else { '' }) })
 }
 
 function Complete-SQLMapInstance {
@@ -222,6 +299,9 @@ function Complete-SQLMapInstance {
 
     # SERVERPROPERTY('Edition') says '(64-bit)', the registry does not: keep one spelling
     if ($i.Edition) { $i.Edition = ([string]$i.Edition -replace '\s*\(64-bit\)\s*$', '').Trim() }
+
+    # Service account from AD SPN owners when neither the services nor the SQL connection gave one
+    Complete-SQLMapSpnAccount $i
 
     if ($i.InstanceName -eq 'MICROSOFT##WID') {
         if (-not $i.Edition) { $i.Edition = 'Windows Internal Database' }

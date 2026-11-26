@@ -24,6 +24,13 @@ SELECT
 # Needs VIEW SERVER STATE; executed separately so the main query still works without it
 $script:SqlConnectSysInfoQuery = 'SELECT cpu_count AS CpuCount, sqlserver_start_time AS StartTime FROM sys.dm_os_sys_info;'
 
+# Service accounts of this instance (engine and SQL Agent), SQL Server 2008 R2 SP1 and later. Needs VIEW SERVER STATE.
+# Gives the account without Windows admin rights on the host. Database engine rows are 'SQL Server (INSTANCE)'.
+$script:SqlConnectServicesQuery = @'
+SELECT servicename, service_account FROM sys.dm_server_services
+WHERE servicename LIKE N'SQL Server (%' OR servicename LIKE N'SQL Server Agent (%';
+'@
+
 function Invoke-SQLMapSqlConnect {
     param(
         [hashtable]$Context,
@@ -37,6 +44,7 @@ function Invoke-SQLMapSqlConnect {
         ProductUpdateLevel = $null; ProductUpdateReference = $null; Edition = $null; EngineEdition = $null
         IsClustered = $null; IsHadrEnabled = $null; Collation = $null; DatabaseCount = $null; HasSsisCatalog = $null
         DataSizeGB = $null; LogSizeGB = $null; MaxServerMemoryMB = $null; CpuCount = $null; StartTime = $null
+        ServiceAccount = $null; AgentServiceAccount = $null
     }
     $csb = New-Object System.Data.SqlClient.SqlConnectionStringBuilder
     $csb['Data Source']        = $DataSource
@@ -81,6 +89,20 @@ function Invoke-SQLMapSqlConnect {
             finally { $reader.Close() }
         }
         catch { Add-SQLMapLog $Context "SqlConnect ${DataSource}: CPU count and start time not available (sys.dm_os_sys_info needs VIEW SERVER STATE)" }
+
+        try {
+            $cmd.CommandText = $script:SqlConnectServicesQuery
+            $reader = $cmd.ExecuteReader()
+            try {
+                while ($reader.Read()) {
+                    $name = [string]$reader.GetValue(0)
+                    $acct = if ($reader.IsDBNull(1)) { $null } else { [string]$reader.GetValue(1) }
+                    if ($name -like 'SQL Server Agent (*') { $r.AgentServiceAccount = $acct } else { $r.ServiceAccount = $acct }
+                }
+            }
+            finally { $reader.Close() }
+        }
+        catch { Add-SQLMapLog $Context "SqlConnect ${DataSource}: service account not available (sys.dm_server_services needs VIEW SERVER STATE and SQL Server 2008 R2 SP1 or later)" }
 
         if ($null -ne $r.DataSizeGB) { $r.DataSizeGB = [double]$r.DataSizeGB }
         if ($null -ne $r.LogSizeGB)  { $r.LogSizeGB  = [double]$r.LogSizeGB }

@@ -76,6 +76,9 @@ function Export-SQLMapReport {
                     ServiceState      = $i.ServiceState
                     StartMode         = $i.StartMode
                     ServiceAccount    = $i.ServiceAccount
+                    ServiceAccountSource = $(if ($i.PSObject.Properties['ServiceAccountSource']) { $i.ServiceAccountSource } else { $null })
+                    AgentServiceAccount  = $(if ($i.PSObject.Properties['AgentServiceAccount']) { $i.AgentServiceAccount } else { $null })
+                    SpnAccounts       = $(if ($i.PSObject.Properties['SpnAccounts']) { Join-SQLMapList $i.SpnAccounts } else { $null })
                     AgentState        = $i.AgentState
                     TcpPort           = $i.TcpPort
                     DynamicPort       = $i.DynamicPort

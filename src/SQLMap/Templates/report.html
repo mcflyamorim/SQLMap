@@ -612,6 +612,12 @@ footer { margin-top: 28px; color: var(--text-muted); font-size: 12px; }
   function nameHtml(s) {
     return String(s == null ? '' : s).split(/(\\| )/).map(function (p) { return p === '\\' ? '\\<wbr>' : p === ' ' ? ' ' : '<span class="nw">' + esc(p) + '</span>'; }).join('');
   }
+  // Where the account came from when it is not the Windows service itself: (SQL) sys.dm_server_services, (AD) SPN owner
+  function accountHtml(i) {
+    if (!i.ServiceAccount) return '';
+    var src = i.ServiceAccountSource === 'SQL connection' ? 'SQL' : i.ServiceAccountSource === 'AD SPN' ? 'AD' : '';
+    return esc(i.ServiceAccount) + (src ? ' <span class="muted" title="Read from ' + esc(i.ServiceAccountSource) + '">(' + src + ')</span>' : '');
+  }
   var instCols = [
     { key: 'SqlInstance', label: 'Instance', cls: 'wrap-name', get: function (i) { return i.SqlInstance; }, html: function (i) { return '<b>' + nameHtml(i.SqlInstance) + '</b>'; } },
     { key: 'ServiceType', label: 'Type', get: function (i) { return i.ServiceType; } },
@@ -626,11 +632,14 @@ footer { margin-top: 28px; color: var(--text-muted); font-size: 12px; }
     { key: 'Clustered', label: 'Cluster', get: function (i) { return i.Clustered ? (i.ClusterName || 'Yes') : ''; } },
     { key: 'SupportStatus', label: 'Support', cls: 'wrap-text', get: function (i) { return i.SupportStatus; }, html: function (i) { return supportChip(i.SupportStatus); }, sort: function (i) { return (SUPPORT[i.SupportStatus] || SUPPORT.Unknown).order; } },
     { key: 'ExtendedEndDate', label: 'Extended end', get: function (i) { return i.ExtendedEndDate; } },
-    { key: 'ServiceAccount', label: 'Service account', cls: 'wrap-text', get: function (i) { return i.ServiceAccount; } },
+    { key: 'ServiceAccount', label: 'Service account', cls: 'wrap-text', get: function (i) { return i.ServiceAccount; }, html: accountHtml },
     { key: 'Confidence', label: 'Confidence', get: function (i) { return i.Confidence; }, sort: function (i) { return { High: 1, Medium: 2, Low: 3 }[i.Confidence] || 4; } },
     { key: 'DetectedBy', label: 'Detected by', cls: 'wrap-text', get: function (i) { return arr(i.DetectedBy).join(', '); } }
   ];
   var instCsvCols = instCols.concat([
+    { key: 'ServiceAccountSource', label: 'Service account read from', get: function (i) { return i.ServiceAccountSource; } },
+    { key: 'AgentServiceAccount', label: 'SQL Agent account', get: function (i) { return i.AgentServiceAccount; } },
+    { key: 'SpnAccounts', label: 'SPN accounts', get: function (i) { return arr(i.SpnAccounts).join(' | '); } },
     { key: 'ServicingBranch', label: 'Servicing branch', get: function (i) { return i.ServicingBranch; } },
     { key: 'LatestBuild', label: 'Latest build', get: function (i) { return i.LatestBuild; } },
     { key: 'SecurityUpdateBuild', label: 'Latest security update build', get: function (i) { return i.SecurityUpdateBuild; } },
@@ -777,7 +786,7 @@ footer { margin-top: 28px; color: var(--text-muted); font-size: 12px; }
       ['Updates behind', i.UpdatesBehind],
       ['Edition', i.Edition], ['Components', arr(i.Components)], ['SSISDB catalog', i.SsisCatalog == null ? null : (i.SsisCatalog ? 'Yes' : 'No')],
       ['Support', supportChip(i.SupportStatus), true], ['Mainstream end', i.MainstreamEndDate], ['Extended end', i.ExtendedEndDate],
-      ['State', stateChip(i), true], ['Service', i.ServiceName], ['Service state', i.ServiceState], ['Start mode', i.StartMode], ['Service account', i.ServiceAccount],
+      ['State', stateChip(i), true], ['Service', i.ServiceName], ['Service state', i.ServiceState], ['Start mode', i.StartMode], ['Service account', i.ServiceAccount], ['Service account read from', i.ServiceAccountSource], ['SQL Agent account', i.AgentServiceAccount], ['SPN accounts (AD)', arr(i.SpnAccounts)],
       ['Agent state', i.AgentState], ['Last registry heartbeat', fmtDate(i.LastHeartbeatUtc)],
       ['TCP port', i.TcpPort == null ? null : i.TcpPort + (i.DynamicPort ? ' (dynamic)' : '')],
       ['Clustered', i.Clustered ? 'Yes' : null], ['Cluster name', i.ClusterName], ['Cluster nodes', arr(i.ClusterNodes)],

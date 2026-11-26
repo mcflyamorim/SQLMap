@@ -178,7 +178,7 @@ function Invoke-SQLMapComputerScan {
             $authoritative = ($h.Probes.Registry -eq 'OK') -or ($h.Probes.Service -eq 'OK')
             $instances = Merge-SQLMapInstance -ComputerName $h.ComputerName -Registry $regInstances -Services $h.Services `
                 -Browser $browserInstances -SPN $h.SPNs -InstanceHint $Target.InstanceHints `
-                -OpenSqlPorts $openSqlPorts -AuthoritativeOK $authoritative
+                -OpenSqlPorts $openSqlPorts -SpnOwner @($Target.SpnOwners | Where-Object { $_ }) -AuthoritativeOK $authoritative
 
             # --- TDS pre-login: exact build of each listening engine, no login needed -------
             # (registry PatchLevel is already exact; Browser/port/SPN-only engines get their real build here)
@@ -258,6 +258,9 @@ function Invoke-SQLMapComputerScan {
                         $i.MaxServerMemoryMB = $sc.MaxServerMemoryMB
                         $i.CpuCount          = $sc.CpuCount
                         $i.SqlStartTime      = $sc.StartTime
+                        # Service accounts without Windows admin rights (sys.dm_server_services, VIEW SERVER STATE)
+                        if (-not $i.ServiceAccount -and $sc.ServiceAccount) { $i.ServiceAccount = $sc.ServiceAccount; $i.ServiceAccountSource = 'SQL connection' }
+                        if (-not $i.AgentServiceAccount -and $sc.AgentServiceAccount) { $i.AgentServiceAccount = $sc.AgentServiceAccount }
                         if ($sc.IsClustered -eq 1) { $i.Clustered = $true }
                         $i.SsisCatalog = ($sc.HasSsisCatalog -gt 0)
                         if ($i.SsisCatalog) { Add-SQLMapComponent $i 'SSISDB catalog' }
