@@ -57,6 +57,9 @@ Double-click **`SQLMap.cmd`**, or run `powershell.exe -STA -File .\SQLMap.ps1`.
 
 **Configuring a scan:**
 - The **Targets / Options / Credentials / Output** tabs on the left map 1:1 to the command-line parameters.
+- **Active Directory** (Targets tab) is one source with two parts, both on by default: **Computer accounts** and
+  **SQL Server SPNs**. The domain and OU apply to both; the name filter, logon age and workstations apply to computer
+  accounts only.
 - **SQL connection** is on by default, with Windows authentication unless a SQL login is set on the Credentials tab.
 - **Review service accounts in Active Directory** (Options tab) is on by default.
 - The HTML report opens when the scan finishes only if **Open the HTML report when the scan finishes** is checked
@@ -66,7 +69,7 @@ Double-click **`SQLMap.cmd`**, or run `powershell.exe -STA -File .\SQLMap.ps1`.
 **While it runs:**
 - Results stream into the **Instances** and **Hosts** grids. Double-click a row for details: probes, services,
   notes and the scan log.
-- The **Service accounts** grid fills when the scan ends, and the Instances grid gains an **Account risk** column.
+- The **Service accounts** grid fills when the scan ends. Account risk is shown there and in the HTML report.
 - The progress bar shows the percent done and the estimated time left (e.g. `37% - about 8 min 10 s left`), based on
   the average pace since scanning started.
 - The summary line counts hosts, instances, engines out of support, engines behind the latest update, service
@@ -122,8 +125,8 @@ Each run creates `Output\SQLMap_yyyyMMdd_HHmmss\` containing:
 |---|---|
 | `SQLMap.html` | Interactive report (single file, works offline) |
 | `SQLMap.json` | Full scan, re-loadable in the UI or with `Import-SQLMapScan` |
-| `SQLMap_Instances.csv` | One row per instance: patch level, version source, accounts and their type, logins and risk, SPN accounts, authentication mode, `sa`, sysadmin members, linked servers, availability groups and notes |
-| `SQLMap_Hosts.csv` | One row per host: probe results, OS and hardware, instance count and types (`Engine 1, SSRS 1`), local Administrators |
+| `SQLMap_Instances.csv` | One row per instance: patch level, version source, accounts and their type, engine and SQL Agent state and start mode, logins and risk, SPN accounts, authentication mode, `sa`, sysadmin members, linked servers, availability groups and notes |
+| `SQLMap_Hosts.csv` | One row per host: probe results, OS and hardware, instance count and types (`Engine 1, SSRS 1`), local Administrators, real computer name, aliases and MachineGuid |
 | `SQLMap_Accounts.csv` | One row per service account: risk, findings, groups, delegation, password, encryption, local admin, instances using it |
 | `SQLMap.log` | Scan log |
 
@@ -155,9 +158,10 @@ A single file that works offline in Edge, Chrome or Firefox, with an Auto / Ligh
     databases and notes.
   - The details also have a **Security** section: service account type and logins, account risk, authentication
     mode, `sa`, sysadmin members, linked servers and availability groups.
-  - A risk label next to the service account flags critical, high and medium accounts.
+  - The table shows the service account and the SQL Agent account; `(SQL)` or `(AD)` marks where the service
+    account came from when it was not the Windows services.
 - **Hosts tab:** probe results per host, including the TDS handshake, plus instance count and types. Host details list
-  the local Administrators.
+  the local Administrators, the real computer name, the other names that reached the same machine, and its MachineGuid.
 - **Service accounts tab:** one row per account, sorted by risk, with a filter for critical or high. Click a row for
   every finding and the instances that use the account.
 - **Issues tab:** every host that could not be fully checked, and why.
@@ -179,8 +183,15 @@ A single file that works offline in Edge, Chrome or Firefox, with an Auto / Ligh
 | `-Broadcast` | SQL Browser UDP broadcast on the local subnet (what SSMS "Browse for servers" uses) |
 
 - **AD queries:** `-Domain` and `-Credential` also apply to AD/SPN queries, e.g. when scanning another domain.
-- **Duplicates:** a host found by several sources is scanned once. The same machine reached through several names or
-  IPs is merged into one host.
+- **Duplicates:** a host found by several sources is scanned once. After the scan, the same machine reached through
+  several names is merged into one host:
+  - **Same IP address:** DNS aliases, `127.0.0.1`, an AD name plus an IP range.
+  - **Different IP addresses** (a DNS alias with its own IP, a second NIC): merged when the **real computer name**
+    (registry, WMI or SQL Server) matches **and** the **MachineGuid** or the **machine SID** (from the local accounts
+    in the Administrators group) matches. Requiring the name keeps VM clones made without sysprep apart, since they
+    share the GUID and SID but have different names.
+  - The kept entry is the one named after the machine. The other names are listed as aliases, with a log line saying
+    why they were merged.
 - **Log:** the scan log shows how many targets each source found.
 - **Tip:** use `-SPN` together with `-ActiveDirectory`. SPNs can be read by any domain user. They reveal named instances
   and their ports on hosts the scan account cannot read, provide service accounts, and expose Kerberos problems.
@@ -193,8 +204,8 @@ A single file that works offline in Edge, Chrome or Firefox, with an Auto / Ligh
 | `Tcp` | TCP connect to `-TcpPort` (default 1433) plus the ports in the host's `MSSQLSvc` SPNs | - |
 | TDS handshake | Part of `Tcp`. Sends the SQL Server pre-login packet to each engine port whose build is not known from the registry. The server answers with its exact build before any login, so it works when the login fails or encryption is forced. It also proves the port is a SQL Server; open ports that do not answer are ignored | TCP access to the instance port |
 | `Browser` | SQL Server Browser query (UDP 1434): instance names and ports | SQL Browser running |
-| `Registry` | Installed instances (incl. SSIS), edition, build, cluster, TCP port, Full-Text/PolyBase, last-running heartbeat | Remote Registry (current user) or WMI (`-Credential`) |
-| `Service` | Windows services (state, start mode, account) + OS, cores, memory, virtualization + members of the local Administrators group | WMI/CIM over WinRM or DCOM, usually local admin |
+| `Registry` | Installed instances (incl. SSIS), edition, build, cluster, TCP port, Full-Text/PolyBase, last-running heartbeat, real computer name and MachineGuid | Remote Registry (current user) or WMI (`-Credential`) |
+| `Service` | Windows services (state, start mode, account) + OS, cores, memory, virtualization, real computer name + members of the local Administrators group | WMI/CIM over WinRM or DCOM, usually local admin. Local Administrators are read with the Net API (what `net localgroup` uses), fast on domain-joined servers; WMI is the fallback |
 | `SqlConnect` | Read-only queries: exact build/CU, databases, sizes, collation, HADR, SSISDB catalog, service accounts, plus security (logins of the service accounts, sysadmin members, authentication mode, `sa`, linked servers, availability groups) | SQL login (Windows auth or `-SqlCredential`). `VIEW SERVER STATE` for CPU count, start time, service accounts and AG roles. A sysadmin login sees all logins and linked servers; others see only part |
 
 - **Skipped probes:** management ports 135, 445 and 5985 are always checked, so probes that cannot work are skipped
@@ -405,7 +416,7 @@ src/SQLMap/
     Discovery.ps1              AD, SPN (with account owners), IP range, broadcast, file
     Probe.Network.ps1          DNS, ping, TCP, TDS pre-login handshake, SQL Browser
     Probe.Registry.ps1         Remote Registry / WMI StdRegProv readers
-    Probe.Cim.ps1              services, OS/hardware, local Administrators
+    Probe.Cim.ps1              services, OS/hardware, local Administrators (Net API, WMI fallback)
     Probe.SqlConnect.ps1       SQL queries (inventory, service account logins, linked servers, AGs, sa)
     Merge.ps1                  evidence merge, confidence, service account, SPN findings, lifecycle
     AccountRisk.ps1            service account review in AD (groups, delegation, Kerberoasting, local admin)
