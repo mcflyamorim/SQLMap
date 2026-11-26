@@ -117,12 +117,78 @@ function Get-SQLMapCimService {
     }
 }
 
-function Get-SQLMapCimLocalAdmin {
+# Local group members through the Net API (what 'net localgroup' uses): one RPC call that returns each member's SID
+# and name. WMI's Win32_GroupUser resolves every member against the domain on domain-joined servers and can take
+# minutes, so it is only the fallback.
+$script:LocalGroupApi = @'
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Security.Principal;
+using System.Text;
+namespace SQLMap {
+    public static class LocalGroupApi {
+        [DllImport("netapi32.dll", CharSet = CharSet.Unicode)]
+        static extern int NetLocalGroupGetMembers(string server, string group, int level, out IntPtr buf, int prefMax, out int read, out int total, IntPtr resume);
+        [DllImport("netapi32.dll")] static extern int NetApiBufferFree(IntPtr buf);
+        [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        static extern bool LookupAccountSid(string system, byte[] sid, StringBuilder name, ref int nameLen, StringBuilder domain, ref int domainLen, out int use);
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        struct LOCALGROUP_MEMBERS_INFO_2 { public IntPtr Sid; public int SidUsage; public string DomainAndName; }
+
+        // Name of a well-known group on that computer (localized, e.g. 'Administradores' for S-1-5-32-544)
+        public static string GroupName(string server, string sid) {
+            SecurityIdentifier s = new SecurityIdentifier(sid);
+            byte[] b = new byte[s.BinaryLength]; s.GetBinaryForm(b, 0);
+            StringBuilder name = new StringBuilder(256), dom = new StringBuilder(256);
+            int nl = 256, dl = 256, use;
+            if (!LookupAccountSid(server, b, name, ref nl, dom, ref dl, out use)) throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+            return name.ToString();
+        }
+
+        // Members: { SID, DOMAIN\name, SID_NAME_USE }
+        public static string[][] Members(string server, string group) {
+            IntPtr buf; int read, total;
+            int rc = NetLocalGroupGetMembers(server, group, 2, out buf, -1, out read, out total, IntPtr.Zero);
+            if (rc != 0) throw new System.ComponentModel.Win32Exception(rc);
+            try {
+                List<string[]> list = new List<string[]>();
+                int size = Marshal.SizeOf(typeof(LOCALGROUP_MEMBERS_INFO_2));
+                for (int i = 0; i < read; i++) {
+                    LOCALGROUP_MEMBERS_INFO_2 m = (LOCALGROUP_MEMBERS_INFO_2)Marshal.PtrToStructure(new IntPtr(buf.ToInt64() + (long)i * size), typeof(LOCALGROUP_MEMBERS_INFO_2));
+                    list.Add(new string[] { new SecurityIdentifier(m.Sid).Value, m.DomainAndName, m.SidUsage.ToString() });
+                }
+                return list.ToArray();
+            }
+            finally { NetApiBufferFree(buf); }
+        }
+    }
+}
+'@
+
+function Get-SQLMapLocalAdmin {
     # Members of the local Administrators group, found by its well-known SID (the name is localized, e.g.
-    # 'Administradores'). Returns $null on domain controllers, which have no local groups.
-    # Each member: @{ Name = 'DOMAIN\x'; SID; Kind = User | Group | System }
-    param([hashtable]$Context, $CimSession)
-    $p = @{ ErrorAction = 'Stop'; OperationTimeoutSec = 30 }
+    # 'Administradores'). Each member: @{ Name = 'DOMAIN\x'; SID; Kind = User | Group | System }
+    # Net API first (fast, current Windows identity); WMI only as a fallback (slow on domain members, and the
+    # only way when -Credential differs from the current user).
+    param([hashtable]$Context, [string]$ComputerName, [bool]$IsLocal, $CimSession)
+    if (-not ('SQLMap.LocalGroupApi' -as [type])) { Add-Type -TypeDefinition $script:LocalGroupApi -ErrorAction Stop }
+    $server = if ($IsLocal) { $null } else { $ComputerName }
+    try {
+        $groupName = [SQLMap.LocalGroupApi]::GroupName($server, 'S-1-5-32-544')
+        $rows = [SQLMap.LocalGroupApi]::Members($server, $groupName)
+        return , @(foreach ($r in $rows) {
+            # SID_NAME_USE: 1 user, 2 group, 4 alias (local group), 5 well-known group
+            $kind = switch ([int]$r[2]) { 1 { 'User' } { $_ -in 2, 4 } { 'Group' } 5 { 'System' } default { 'Other' } }
+            [pscustomobject]@{ Name = $(if ($r[1]) { $r[1] } else { $r[0] }); SID = $r[0]; Kind = $kind }
+        })
+    }
+    catch {
+        $netError = Get-SQLMapErrorMessage $_
+        if (-not $CimSession -and -not $IsLocal) { throw "Net API: $netError" }
+        Add-SQLMapLog $Context "Local Administrators through the Net API failed ($netError); trying WMI"
+    }
+    $p = @{ ErrorAction = 'Stop'; OperationTimeoutSec = 15 }
     if ($CimSession) { $p.CimSession = $CimSession }
     $group = Get-CimInstance @p -ClassName Win32_Group -Filter "SID = 'S-1-5-32-544' AND LocalAccount = TRUE"
     if (-not $group) { return $null }

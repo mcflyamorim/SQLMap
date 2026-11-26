@@ -170,7 +170,7 @@ function Invoke-SQLMapComputerScan {
                     $h.HostInfo = Get-SQLMapCimHostInfo -Context $ctx -CimSession $cim.Session
                     # Local Administrators: used after the scan to tell where service accounts are local admin
                     try {
-                        $la = Get-SQLMapCimLocalAdmin -Context $ctx -CimSession $cim.Session
+                        $la = Get-SQLMapLocalAdmin -Context $ctx -ComputerName $connectName -IsLocal $isLocal -CimSession $cim.Session
                         if ($null -ne $la) {
                             $h.LocalAdmins = @($la)
                             Add-SQLMapLog $ctx "Local Administrators: $(@($la).Count) member(s)"
