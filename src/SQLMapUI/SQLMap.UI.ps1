@@ -1420,9 +1420,14 @@ function New-SQLMapMainForm {
         SqlConnect = New-UiCheckBox 'SQL connection (read-only queries: CU, databases, sizes)' $true
     }
     foreach ($k in $u.ProbeBoxes.Keys) { $u.ProbeBoxes[$k].Margin = New-Object System.Windows.Forms.Padding(12, 3, 3, 1); $o.Controls.Add($u.ProbeBoxes[$k]) }
-    $u.ChkAccountReview = New-UiCheckBox 'Review service accounts in Active Directory (groups, delegation, Kerberoasting, local admin)' $true
-    $u.ChkAccountReview.Margin = New-Object System.Windows.Forms.Padding(12, 3, 3, 1)
+    # Short label (check boxes do not wrap); the details go in a wrapping note below
+    $u.ChkAccountReview = New-UiCheckBox 'Review service accounts in Active Directory' $true
+    $u.ChkAccountReview.Margin = New-Object System.Windows.Forms.Padding(12, 3, 3, 0)
     $o.Controls.Add($u.ChkAccountReview)
+    $reviewNote = New-UiLabel 'Groups, delegation, Kerberoasting and local admin of the accounts that run SQL Server (read-only).' -Muted
+    $reviewNote.MaximumSize = New-Object System.Drawing.Size(360, 0)
+    $reviewNote.Margin = New-Object System.Windows.Forms.Padding(30, 0, 3, 4)
+    $o.Controls.Add($reviewNote)
     $o.Controls.Add((New-UiLabel 'Scan settings' -Bold))
     $og = New-UiGrid2
     $og.Margin = New-Object System.Windows.Forms.Padding(9, 0, 3, 3)
