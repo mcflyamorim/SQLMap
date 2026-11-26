@@ -639,8 +639,7 @@ footer { margin-top: 28px; color: var(--text-muted); font-size: 12px; }
   function accountHtml(i) {
     if (!i.ServiceAccount) return '';
     var src = i.ServiceAccountSource === 'SQL connection' ? 'SQL' : i.ServiceAccountSource === 'AD SPN' ? 'AD' : '';
-    var risk = (i.AccountRisk === 'Critical' || i.AccountRisk === 'High' || i.AccountRisk === 'Medium') ? ' <span title="' + esc(i.AccountRiskSummary || '') + '">' + riskChip(i.AccountRisk) + '</span>' : '';
-    return nameHtml(i.ServiceAccount) + (src ? ' <span class="muted" title="Read from ' + esc(i.ServiceAccountSource) + '">(' + src + ')</span>' : '') + risk;
+    return nameHtml(i.ServiceAccount) + (src ? ' <span class="muted" title="Read from ' + esc(i.ServiceAccountSource) + '">(' + src + ')</span>' : '');
   }
   var instCols = [
     { key: 'SqlInstance', label: 'Instance', cls: 'wrap-name', get: function (i) { return i.SqlInstance; }, html: function (i) { return '<b>' + nameHtml(i.SqlInstance) + '</b>'; } },
@@ -920,6 +919,7 @@ footer { margin-top: 28px; color: var(--text-muted); font-size: 12px; }
     var info = hi(h), pr = h.Probes || {}, pm = h.ProbeMessages || {};
     var html = kv([
       ['Status', hostChip(h.Status), true], ['Detail', h.StatusDetail], ['DNS name', h.DnsName], ['IP address', h.IPAddress],
+      ['Real computer name', h.ActualComputerName], ['Also reached as', arr(h.Aliases)], ['MachineGuid', h.MachineGuid],
       ['Discovered by', arr(h.Sources)], ['Open ports', arr(h.OpenPorts)], ['OS', info.OSCaption || h.AdOperatingSystem], ['OS version', info.OSVersion],
       ['Domain', info.Domain], ['Manufacturer / model', [info.Manufacturer, info.Model].filter(Boolean).join(' / ')], ['Virtual', info.IsVirtual == null ? null : (info.IsVirtual ? 'Yes' : 'No')],
       ['Sockets / cores / logical', info.Cores == null ? null : [info.Sockets, info.Cores, info.LogicalProcessors].join(' / ')], ['Memory GB', info.MemoryGB],
