@@ -369,7 +369,6 @@ Invoke-SQLMapComputerScan -Target SRV01 -Probe Ping, Tcp, Registry, Service, Sql
 # Skip the AD review of service accounts
 Invoke-SQLMapScan -ComputerName SRV01, SRV02 -SqlConnect -SkipAccountReview
 
-
 # Re-render an old scan with the current report template
 Import-SQLMapScan .\Output\Contoso\SQLMap.json | Export-SQLMapReport -Path .\Output\Contoso -Format Html
 ```
