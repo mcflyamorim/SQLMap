@@ -76,7 +76,9 @@ body {
   color: var(--text-primary);
   font: 14px/1.45 "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
 }
-.wrap { max-width: 1440px; margin: 0 auto; padding: 24px 24px 64px; }
+.wrap { max-width: 1440px; margin: 0 auto; padding: 24px 24px 0; }
+/* Tabs and tables use the full window width so every column fits without a horizontal scrollbar */
+.wrap.wide { max-width: none; padding: 0 24px 64px; }
 header.top { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; }
 h1 { font-size: 24px; margin: 0 0 4px; font-weight: 650; letter-spacing: -.01em; }
 h1 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -137,8 +139,8 @@ button:focus-visible, select:focus-visible, input:focus-visible, tr:focus-visibl
 .filters .shown { color: var(--text-muted); font-size: 12px; }
 .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-1); }
 table { border-collapse: collapse; width: 100%; font-size: 13px; }
-th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; vertical-align: top; }
-th { position: sticky; top: 0; background: var(--surface-2); font-weight: 600; color: var(--text-secondary); cursor: pointer; user-select: none; font-size: 12px; }
+th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; vertical-align: top; }
+th { position: sticky; top: 0; background: var(--surface-2); font-weight: 600; color: var(--text-secondary); cursor: pointer; user-select: none; font-size: 12px; white-space: normal; vertical-align: bottom; }
 th[aria-sort="ascending"]::after { content: " \25B2"; font-size: 9px; }
 th[aria-sort="descending"]::after { content: " \25BC"; font-size: 9px; }
 tbody tr { cursor: pointer; }
@@ -147,6 +149,13 @@ tbody tr:last-child td { border-bottom: 0; }
 td.num { text-align: right; font-variant-numeric: tabular-nums; }
 td .muted, .muted { color: var(--text-muted); }
 td.cell-wrap { white-space: normal; min-width: 260px; max-width: 560px; }
+td.wrap-text { white-space: normal; min-width: 90px; max-width: 280px; overflow-wrap: break-word; }
+td.wrap-text.wide-min { min-width: 170px; }
+/* Instance names break only after the backslash or before ' (SSIS130)', never inside a name */
+td.wrap-name { white-space: normal; min-width: 120px; }
+.nw { white-space: nowrap; }
+td.wrap-text .chip { white-space: normal; align-items: flex-start; }
+td.wrap-text .chip .dot { margin-top: 4px; }
 .pager { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 8px; color: var(--text-muted); font-size: 12px; }
 
 /* Detail dialog */
@@ -165,7 +174,8 @@ dialog::backdrop { background: rgba(0,0,0,.45); }
 footer { margin-top: 28px; color: var(--text-muted); font-size: 12px; }
 
 @media (max-width: 640px) {
-  .wrap { padding: 16px 16px 48px; }
+  .wrap { padding: 16px 16px 0; }
+  .wrap.wide { padding: 0 16px 48px; }
   .kv { grid-template-columns: 1fr; }
   .kv dt { margin-top: 6px; }
   .filters input[type="search"] { min-width: 0; max-width: none; }
@@ -207,6 +217,8 @@ footer { margin-top: 28px; color: var(--text-muted); font-size: 12px; }
     <div class="card"><h2>Host scan results</h2><div class="bars" id="chart-hosts"></div></div>
   </section>
 
+</div>
+<div class="wrap wide">
   <nav class="tabs" role="tablist" aria-label="Details">
     <button class="tab" role="tab" aria-selected="true" aria-controls="panel-instances" id="tab-instances">Instances<span class="count" id="count-instances"></span></button>
     <button class="tab" role="tab" aria-selected="false" aria-controls="panel-hosts" id="tab-hosts">Hosts<span class="count" id="count-hosts"></span></button>
@@ -597,23 +609,26 @@ footer { margin-top: 28px; color: var(--text-muted); font-size: 12px; }
   // ---------- instances ----------
   fillSelect('f-inst-type', uniq(instances.map(function (i) { return i.ServiceType; })).sort());
   fillSelect('f-inst-support', uniq(instances.map(function (i) { return i.SupportStatus; })).sort(function (a, b) { return ((SUPPORT[a] || {}).order || 9) - ((SUPPORT[b] || {}).order || 9); }));
+  function nameHtml(s) {
+    return String(s == null ? '' : s).split(/(\\| )/).map(function (p) { return p === '\\' ? '\\<wbr>' : p === ' ' ? ' ' : '<span class="nw">' + esc(p) + '</span>'; }).join('');
+  }
   var instCols = [
-    { key: 'SqlInstance', label: 'Instance', get: function (i) { return i.SqlInstance; }, html: function (i) { return '<b>' + esc(i.SqlInstance) + '</b>'; } },
+    { key: 'SqlInstance', label: 'Instance', cls: 'wrap-name', get: function (i) { return i.SqlInstance; }, html: function (i) { return '<b>' + nameHtml(i.SqlInstance) + '</b>'; } },
     { key: 'ServiceType', label: 'Type', get: function (i) { return i.ServiceType; } },
-    { key: 'ProductName', label: 'Product', get: function (i) { return i.ProductName; }, sort: function (i) { return i.MajorVersion || 0; } },
+    { key: 'ProductName', label: 'Product', cls: 'wrap-text', get: function (i) { return i.ProductName; }, sort: function (i) { return i.MajorVersion || 0; } },
     { key: 'Version', label: 'Build', get: function (i) { return i.Version; } },
-    { key: 'UpdateLevel', label: 'Level', get: function (i) { return levelText(i); } },
-    { key: 'PatchStatus', label: 'Latest update', get: patchText, html: patchChip, sort: function (i) { return ((PATCH[i.PatchStatus] || PATCH.Unknown).order * 1000) + (i.UpdatesBehind || 0); } },
-    { key: 'Edition', label: 'Edition', get: function (i) { return i.Edition; } },
-    { key: 'Components', label: 'Components', get: function (i) { return arr(i.Components).join(', '); } },
+    { key: 'UpdateLevel', label: 'Level', cls: 'wrap-text', get: function (i) { return levelText(i); } },
+    { key: 'PatchStatus', label: 'Latest update', cls: 'wrap-text wide-min', get: patchText, html: patchChip, sort: function (i) { return ((PATCH[i.PatchStatus] || PATCH.Unknown).order * 1000) + (i.UpdatesBehind || 0); } },
+    { key: 'Edition', label: 'Edition', cls: 'wrap-text', get: function (i) { return i.Edition; } },
+    { key: 'Components', label: 'Components', cls: 'wrap-text', get: function (i) { return arr(i.Components).join(', '); } },
     { key: 'IsRunning', label: 'State', get: function (i) { return i.IsRunning === true ? 'Running' : i.IsRunning === false ? 'Stopped' : 'Unknown'; }, html: stateChip },
     { key: 'TcpPort', label: 'Port', cls: 'num', get: function (i) { return i.TcpPort == null ? '' : i.TcpPort + (i.DynamicPort ? ' (dyn)' : ''); }, sort: function (i) { return i.TcpPort || 0; } },
     { key: 'Clustered', label: 'Cluster', get: function (i) { return i.Clustered ? (i.ClusterName || 'Yes') : ''; } },
-    { key: 'SupportStatus', label: 'Support', get: function (i) { return i.SupportStatus; }, html: function (i) { return supportChip(i.SupportStatus); }, sort: function (i) { return (SUPPORT[i.SupportStatus] || SUPPORT.Unknown).order; } },
+    { key: 'SupportStatus', label: 'Support', cls: 'wrap-text', get: function (i) { return i.SupportStatus; }, html: function (i) { return supportChip(i.SupportStatus); }, sort: function (i) { return (SUPPORT[i.SupportStatus] || SUPPORT.Unknown).order; } },
     { key: 'ExtendedEndDate', label: 'Extended end', get: function (i) { return i.ExtendedEndDate; } },
-    { key: 'ServiceAccount', label: 'Service account', get: function (i) { return i.ServiceAccount; } },
+    { key: 'ServiceAccount', label: 'Service account', cls: 'wrap-text', get: function (i) { return i.ServiceAccount; } },
     { key: 'Confidence', label: 'Confidence', get: function (i) { return i.Confidence; }, sort: function (i) { return { High: 1, Medium: 2, Low: 3 }[i.Confidence] || 4; } },
-    { key: 'DetectedBy', label: 'Detected by', get: function (i) { return arr(i.DetectedBy).join(', '); } }
+    { key: 'DetectedBy', label: 'Detected by', cls: 'wrap-text', get: function (i) { return arr(i.DetectedBy).join(', '); } }
   ];
   var instCsvCols = instCols.concat([
     { key: 'ServicingBranch', label: 'Servicing branch', get: function (i) { return i.ServicingBranch; } },
@@ -664,8 +679,8 @@ footer { margin-top: 28px; color: var(--text-muted); font-size: 12px; }
     { key: 'IPAddress', label: 'IP', get: function (h) { return h.IPAddress; } },
     { key: 'Status', label: 'Status', get: function (h) { return h.Status; }, html: function (h) { return hostChip(h.Status); }, sort: function (h) { return (HOST_STATUS[h.Status] || {}).order || 99; } },
     { key: 'InstanceCount', label: 'Instances', cls: 'num', get: function (h) { return h.InstanceCount; }, sort: function (h) { return h.InstanceCount || 0; } },
-    { key: 'InstanceTypes', label: 'Types', get: hostTypes, html: function (h) { var t = hostTypes(h); return t ? esc(t) : '<span class="muted">-</span>'; } },
-    { key: 'OS', label: 'Operating system', get: function (h) { return hi(h).OSCaption || h.AdOperatingSystem; } },
+    { key: 'InstanceTypes', label: 'Types', cls: 'wrap-text', get: hostTypes, html: function (h) { var t = hostTypes(h); return t ? esc(t) : '<span class="muted">-</span>'; } },
+    { key: 'OS', label: 'Operating system', cls: 'wrap-text', get: function (h) { return hi(h).OSCaption || h.AdOperatingSystem; } },
     { key: 'Cores', label: 'Cores', cls: 'num', get: function (h) { return hi(h).Cores; }, sort: function (h) { return hi(h).Cores || 0; } },
     { key: 'MemoryGB', label: 'Memory GB', cls: 'num', get: function (h) { return hi(h).MemoryGB; }, sort: function (h) { return hi(h).MemoryGB || 0; } },
     { key: 'IsVirtual', label: 'Virtual', get: function (h) { var v = hi(h).IsVirtual; return v === true ? 'Yes' : v === false ? 'No' : ''; } },
