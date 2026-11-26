@@ -60,6 +60,7 @@ Double-click **`SQLMap.cmd`**, or run `powershell.exe -STA -File .\SQLMap.ps1`.
 - **Active Directory** (Targets tab) is one source with two parts, both on by default: **Computer accounts** and
   **SQL Server SPNs**. The domain and OU apply to both; the name filter, logon age and workstations apply to computer
   accounts only.
+- The Targets tab fits without a scroll bar even with every source open.
 - **SQL connection** is on by default, with Windows authentication unless a SQL login is set on the Credentials tab.
 - **Review service accounts in Active Directory** (Options tab) is on by default.
 - The HTML report opens when the scan finishes only if **Open the HTML report when the scan finishes** is checked
@@ -73,7 +74,8 @@ Double-click **`SQLMap.cmd`**, or run `powershell.exe -STA -File .\SQLMap.ps1`.
 - The progress bar shows the percent done and the estimated time left (e.g. `37% - about 8 min 10 s left`), based on
   the average pace since scanning started.
 - The summary line counts hosts, instances, engines out of support, engines behind the latest update, service
-  accounts at risk and hosts not verified, including how many were *access denied*.
+  accounts at risk and hosts not verified, including how many were *access denied*. It stays within the window
+  (ending in `...` if needed); hover over it for the full text and the access-denied advice.
 - After the hosts, the status line shows *Reviewing service accounts in Active Directory...* while the account
   review runs.
 - **Cancel** stops the scan and keeps what was already found.
@@ -168,6 +170,8 @@ A single file that works offline in Edge, Chrome or Firefox, with an Auto / Ligh
 - **Export CSV:** each tab exports its own table.
 - **Layout:** tables use the full window width, and long values wrap, so all columns fit on a wide screen. Narrow
   windows get a horizontal scrollbar.
+- **Details window:** up to 1400 px wide. Linked servers, sysadmin members and availability groups are listed one per
+  line, never wrapped; on a narrow window the list scrolls sideways.
 - **Re-rendering:** an older scan can be re-rendered with the current template:
   `Import-SQLMapScan .\SQLMap.json | Export-SQLMapReport -Path .\out -Format Html`.
 
